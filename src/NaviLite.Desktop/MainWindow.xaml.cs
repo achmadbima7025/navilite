@@ -52,11 +52,21 @@ public partial class MainWindow : Window
             {
                 Header = header,
                 Binding = new Binding($"[{index}]") { Mode = BindingMode.OneWay },
+                SortMemberPath = column.Name,
+                SortDirection = _viewModel.AppliedSortColumn == column.Name
+                    ? _viewModel.AppliedSortDirection == "desc" ? ListSortDirection.Descending : ListSortDirection.Ascending
+                    : null,
                 Width = new DataGridLength(150),
                 MinWidth = 70,
                 MaxWidth = 600
             });
         }
+    }
+
+    private async void PreviewGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        await _viewModel.SortByAsync(e.Column.SortMemberPath);
     }
 
     private async void Schema_Expanded(object sender, RoutedEventArgs e)

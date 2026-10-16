@@ -36,7 +36,12 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         NextPageCommand = new(() => RunAsync(NextPageAsync), () => CanBrowse && Page?.HasMore == true);
         PreviousPageCommand = new(() => RunAsync(PreviousPageAsync), () => CanBrowse && _pageHistory.Count > 0);
         ReloadPageCommand = new(() => RunAsync(ReloadPageAsync), () => CanBrowse && Page is not null);
-        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand];
+        ApplyQueryCommand = new(() => RunAsync(ApplyQueryAsync), () => CanQuery);
+        ResetQueryCommand = new(() => RunAsync(ResetQueryAsync), () => CanQuery);
+        PreviousRecordCommand = new(() => SelectRecordAsync(-1), () => CanQuery && SelectedRecord is { Index: > 0 });
+        NextRecordCommand = new(() => SelectRecordAsync(1), () => CanQuery && SelectedRecord is not null && SelectedRecord.Index + 1 < Page!.Rows.Count);
+        ToggleFormCommand = new(() => { DataViewIndex = DataViewIndex == 1 ? 0 : 1; SelectedWorkspaceTab = 1; return Task.CompletedTask; }, () => CanQuery);
+        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand];
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -235,6 +240,8 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Changed(nameof(IsConnected));
         Changed(nameof(CanEdit));
         Changed(nameof(CanBrowse));
+        Changed(nameof(CanQuery));
+        Changed(nameof(FilterValueEnabled));
         RefreshCommands();
     }
 

@@ -4,6 +4,21 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
+### Added
+
+- Server-side structured data filtering with eight comparison/NULL operators, literal Contains/Starts with matching, and parameterized values.
+- Numeric parameter validation, 64-bit integer parameters, matching FLOAT/DOUBLE precision, and exact decimal comparison without floating-point conversion.
+- Single-column ASC/DESC sorting from controls or grid headers, with primary-key tie-break ordering when available.
+- Applied query state across pagination/refresh, pending-draft indicators, and preservation of the current result on request failure.
+- Read-only Form View with synchronized record selection, local record navigation, column types, NULL/binary/truncation indicators, and Ctrl+G grid/form switching.
+- Additive `navilite_table_page_query` FFI API, retaining the previous page API, ABI 1, and NVLR v1 frame format.
+
+### Scope
+
+- One filter condition and one explicit sort column per data preview. Form View displays the same bounded cell previews as the grid. Editing, full-value inspection, compound queries, user SQL execution, SSH, and transfer tools remain pending.
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

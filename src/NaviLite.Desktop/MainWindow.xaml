@@ -5,6 +5,7 @@
         Title="{Binding WindowTitle}" Width="1240" Height="820" MinWidth="1040" MinHeight="740"
         WindowStartupLocation="CenterScreen" Background="#F4F6FA" Foreground="#17243B"
         FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing">
+    <Window.InputBindings><KeyBinding Key="G" Modifiers="Control" Command="{Binding ToggleFormCommand}" /></Window.InputBindings>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
         <HierarchicalDataTemplate DataType="{x:Type models:SchemaNode}" ItemsSource="{Binding Children}">
@@ -184,7 +185,7 @@
               </TabItem>
               <TabItem Header="Data explorer">
                 <Grid Margin="14,16">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Grid Margin="0,0,0,14">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel>
@@ -199,16 +200,89 @@
                         <Button Content="← Previous" Command="{Binding PreviousPageCommand}" />
                         <Button Content="Next →" Command="{Binding NextPageCommand}" Margin="0" />
                     </WrapPanel>
-                    <TabControl Grid.Row="2" Background="White" BorderBrush="#E0E6F0">
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <WrapPanel IsEnabled="{Binding CanQuery}">
+                                <StackPanel Width="150" Margin="0,0,10,8">
+                                    <TextBlock Text="Filter column" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox ItemsSource="{Binding QueryColumns}" DisplayMemberPath="Label" SelectedValuePath="Name" SelectedValue="{Binding FilterColumn}" Padding="6" />
+                                </StackPanel>
+                                <StackPanel Width="125" Margin="0,0,10,8">
+                                    <TextBlock Text="Condition" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox ItemsSource="{Binding FilterOperators}" DisplayMemberPath="Label" SelectedValuePath="Code" SelectedValue="{Binding FilterOperatorCode}" Padding="6" />
+                                </StackPanel>
+                                <StackPanel Width="180" Margin="0,0,10,8">
+                                    <TextBlock Text="Value" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding FilterValue, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding FilterValueEnabled}" MaxLength="4096" Padding="8,6" ToolTip="A literal value. Percent and underscore are treated as text in Contains / Starts with." />
+                                </StackPanel>
+                                <StackPanel Width="150" Margin="0,0,10,8">
+                                    <TextBlock Text="Order by" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox ItemsSource="{Binding QueryColumns}" DisplayMemberPath="Label" SelectedValuePath="Name" SelectedValue="{Binding SortColumn}" Padding="6" />
+                                </StackPanel>
+                                <StackPanel Width="75" Margin="0,0,10,8">
+                                    <TextBlock Text="Direction" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox ItemsSource="{Binding SortDirections}" SelectedItem="{Binding SortDirection}" Padding="6" />
+                                </StackPanel>
+                                <Button Content="Apply" Command="{Binding ApplyQueryCommand}" VerticalAlignment="Bottom" Margin="0,0,8,8" />
+                                <Button Content="Reset" Command="{Binding ResetQueryCommand}" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding QuerySummary}" Foreground="#52627B" TextWrapping="Wrap" FontSize="11" />
+                            <TextBlock Text="{Binding QueryDraftMessage}" Foreground="#AA7620" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <TabControl Grid.Row="3" Background="White" BorderBrush="#E0E6F0" SelectedIndex="{Binding DataViewIndex}">
                         <TabItem Header="Data · read only">
                             <DockPanel Margin="8">
                                 <TextBlock DockPanel.Dock="Bottom" Text="{Binding PageSummary}" TextWrapping="Wrap" Foreground="#75849A" FontSize="11" Margin="4,12,4,4" />
                                 <DataGrid x:Name="PreviewGrid" ItemsSource="{Binding Page.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
-                                          CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" CanUserReorderColumns="True"
+                                          CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" CanUserReorderColumns="True" Sorting="PreviewGrid_Sorting"
                                           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                           ScrollViewer.CanContentScroll="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="29"
                                           Background="White" BorderThickness="0" HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD"
-                                          SelectionUnit="CellOrRowHeader" ClipboardCopyMode="IncludeHeader" AutomationProperties.Name="Read-only table data preview" />
+                                          SelectedItem="{Binding SelectedRecord, Mode=TwoWay}" SelectionUnit="FullRow" SelectionMode="Single" ClipboardCopyMode="IncludeHeader" AutomationProperties.Name="Read-only table data preview" />
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Form · read only" ToolTip="Switch grid / form with Ctrl+G">
+                            <DockPanel Margin="10">
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding RecordSummary}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button Content="← Record" Command="{Binding PreviousRecordCommand}" Padding="10,5" />
+                                        <Button Content="Record →" Command="{Binding NextRecordCommand}" Padding="10,5" Margin="0" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock DockPanel.Dock="Bottom" Text="{Binding PageSummary}" TextWrapping="Wrap" Foreground="#75849A" FontSize="11" Margin="4,10,4,4" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="135" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                    <ListBox ItemsSource="{Binding Page.Rows}" SelectedItem="{Binding SelectedRecord, Mode=TwoWay}" DisplayMemberPath="Label"
+                                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
+                                             BorderBrush="#E0E6F0" Background="#F8FAFD" AutomationProperties.Name="Records in the current page" />
+                                    <ListBox Grid.Column="2" ItemsSource="{Binding FormFields}" BorderThickness="0" Background="Transparent"
+                                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" Focusable="False">
+                                        <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Focusable" Value="False" /></Style></ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="#E0E6F0" BorderThickness="0,0,0,1" Padding="6,10">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                            <TextBlock Text="{Binding SqlType}" Foreground="#8090A7" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                            <TextBlock Text="NULL" Foreground="#8090A7" FontStyle="Italic" Visibility="{Binding IsNull, Converter={StaticResource BoolVisibility}}" FontSize="10" Margin="0,4,0,0" />
+                                                            <TextBlock Text="Binary preview" Foreground="#8090A7" Visibility="{Binding IsBinary, Converter={StaticResource BoolVisibility}}" FontSize="10" Margin="0,4,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2">
+                                                            <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" BorderThickness="0" Background="#F8FAFD" Padding="8" MaxHeight="210" VerticalScrollBarVisibility="Auto" />
+                                                            <TextBlock Text="Shortened preview" Foreground="#AA7620" FontSize="10" Visibility="{Binding IsTruncated, Converter={StaticResource BoolVisibility}}" Margin="6,4,0,0" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Definition">

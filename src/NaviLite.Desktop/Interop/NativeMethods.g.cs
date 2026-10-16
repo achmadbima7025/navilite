@@ -87,6 +87,14 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiBuffer navilite_table_page(ulong handle, byte* database, byte* table, ulong offset, uint page_size);
 
         /// <summary>
+        ///  Reads a page using validated column/operator filters and server-side ordering.
+        ///  # Safety
+        ///  Database, table, and options must be valid NUL-terminated UTF-8 strings for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_table_page_query", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiBuffer navilite_table_page_query(ulong handle, byte* database, byte* table, ulong offset, uint page_size, byte* options);
+
+        /// <summary>
         ///  Releases a binary or error buffer, using its original pointer and length. Null is accepted.
         ///  # Safety
         ///  Data and length must identify an unfreed allocation returned in FfiBuffer by this library.

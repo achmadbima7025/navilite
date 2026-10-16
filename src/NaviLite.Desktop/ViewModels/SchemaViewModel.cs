@@ -39,6 +39,7 @@ public sealed partial class MainViewModel
         {
             var previous = _page;
             Set(ref _page, value);
+            UpdatePageControls();
             Changed(nameof(PageSummary));
             RefreshCommands();
             previous?.Dispose();
@@ -47,7 +48,7 @@ public sealed partial class MainViewModel
     public string PageSummary => Page is null
         ? "Expand a database, then double-click a table or view to browse its data."
         : $"{Page.Rows.Count} rows · offset {Page.Offset:N0} · {Page.ByteLength / 1024.0:N1} KiB · {Page.TruncatedCells} shortened cells" +
-          (Page.HasStableOrder ? " · ordered by primary key" : " · no primary key; page order may change");
+          (Page.HasStableOrder ? " · primary-key tie-break ordering" : " · no primary key; page order may change");
 
     private void ApplyFilter()
     {
@@ -79,6 +80,7 @@ public sealed partial class MainViewModel
             _openDatabase = node.Database;
             _openTable = node.Name;
             _pageHistory.Clear();
+            ResetQueryState();
             ObjectTitle = $"{node.Database} / {node.Name}";
             Ddl = "Loading object definition...";
             Page = page;
@@ -95,7 +97,7 @@ public sealed partial class MainViewModel
         var previous = Page;
         if (previous is null || !previous.HasMore) return;
         Status = $"Loading rows from offset {previous.NextOffset:N0}...";
-        var next = await _core.ReadPageAsync(_handle, _openDatabase, _openTable, previous.NextOffset);
+        var next = await _core.ReadPageAsync(_handle, _openDatabase, _openTable, previous.NextOffset, _appliedQuery);
         _pageHistory.Push(previous.Offset);
         Page = next;
         Status = PageSummary;
@@ -106,7 +108,7 @@ public sealed partial class MainViewModel
         if (_pageHistory.Count == 0) return;
         ulong offset = _pageHistory.Peek();
         Status = $"Loading rows from offset {offset:N0}...";
-        var previous = await _core.ReadPageAsync(_handle, _openDatabase, _openTable, offset);
+        var previous = await _core.ReadPageAsync(_handle, _openDatabase, _openTable, offset, _appliedQuery);
         _pageHistory.Pop();
         Page = previous;
         Status = PageSummary;
@@ -116,13 +118,14 @@ public sealed partial class MainViewModel
     {
         if (Page is null) return;
         Status = $"Refreshing {_openDatabase}.{_openTable}...";
-        Page = await _core.ReadPageAsync(_handle, _openDatabase, _openTable, Page.Offset);
+        Page = await _core.ReadPageAsync(_handle, _openDatabase, _openTable, Page.Offset, _appliedQuery);
         Status = PageSummary;
     }
 
     private void ClearPreview()
     {
         _pageHistory.Clear();
+        ResetQueryState();
         Page = null;
         _openDatabase = _openTable = "";
         ObjectTitle = "Data explorer";

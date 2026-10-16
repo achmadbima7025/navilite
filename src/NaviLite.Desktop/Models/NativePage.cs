@@ -10,7 +10,11 @@ namespace NaviLite.Desktop.Models;
 public sealed record PageColumn(string Name, string SqlType);
 public sealed class NativeRow(NativePage page, int row)
 {
-    public string this[int column] => page.ReadCell(row, column);
+    public string this[int column] => page.ReadCell(row, column).Text;
+    public int Index => row;
+    public string Label => $"Row {page.Offset + (ulong)row + 1:N0}";
+    internal bool BelongsTo(NativePage? owner) => ReferenceEquals(page, owner);
+    internal NativeCell Cell(int column) => page.ReadCell(row, column);
 }
 
 public sealed unsafe class NativePage : SafeHandle
@@ -98,9 +102,9 @@ public sealed unsafe class NativePage : SafeHandle
         Rows = Enumerable.Range(0, rowCount).Select(row => new NativeRow(this, row)).ToArray();
     }
 
-    internal string ReadCell(int row, int column)
+    internal NativeCell ReadCell(int row, int column)
     {
-        if ((uint)row >= (uint)Rows.Count || (uint)column >= (uint)Columns.Count) return string.Empty;
+        if ((uint)row >= (uint)Rows.Count || (uint)column >= (uint)Columns.Count) return new("");
         bool added = false;
         try
         {
@@ -112,9 +116,9 @@ public sealed unsafe class NativePage : SafeHandle
             int length = Position(bytes, cell + 1);
             var payload = bytes.Slice(cell + 5, length);
             string value = (tag & 127) switch { 0 => "NULL", 2 => "0x" + Convert.ToHexString(payload), _ => Encoding.UTF8.GetString(payload) };
-            return (tag & 128) != 0 ? value + " …" : value;
+            return new((tag & 128) != 0 ? value + " …" : value, (tag & 127) == 0, (tag & 127) == 2, (tag & 128) != 0);
         }
-        catch (ObjectDisposedException) { return string.Empty; }
+        catch (ObjectDisposedException) { return new(""); }
         finally { if (added) DangerousRelease(); }
     }
 

@@ -2,6 +2,7 @@
 
 mod connection;
 pub mod ffi;
+mod page_options;
 mod profiles;
 mod schema;
 mod table_page;

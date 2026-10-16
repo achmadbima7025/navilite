@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.2.0
+## Status aplikasi: 0.3.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -71,7 +71,15 @@ Inkrement 0.2.0 menambahkan Data explorer:
 
 Saat sudah terhubung, buka tab Data explorer, perluas database lalu kategori objek. Refresh pada panel navigasi membuang cache pohon dan memuat ulang daftar database. Halaman data aktif dapat dimuat ulang lewat Refresh data.
 
-SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, Form View, filter/sort SQL, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.3.0 menambahkan filter/sort dan Form View:
+
+- Satu kondisi filter per tabel/view: Equals, Not equal, Contains, Starts with, Greater than, Less than, IS NULL, atau IS NOT NULL. Pilih kolom, kondisi, dan nilai lalu Apply. Contains/Starts with memperlakukan `%`, `_`, dan `!` sebagai teks literal; perbandingan teks mengikuti collation server. Kolom biner mendukung kondisi NULL saja.
+- Filter diproses di server memakai prepared statement. Integer dikirim sebagai angka 64 bit; FLOAT memakai presisi 32 bit dan DOUBLE presisi 64 bit. DECIMAL memakai konversi desimal eksplisit agar tidak kehilangan presisi melalui floating point. Nilai angka yang tidak valid ditolak. Nilai filter maksimal 4.096 karakter; desimal memakai titik dan tidak menerima notasi eksponen.
+- Satu kolom sort ASC/DESC melalui pilihan Order by atau klik header grid. Klik header berulang beralih ASC, DESC, lalu urutan default. Primary key ditambahkan sebagai pembeda urutan jika tersedia. Filter/sort berlaku pada seluruh hasil sebelum pagination.
+- Apply dan Reset kembali ke halaman pertama. Previous/Next/Refresh menggunakan filter/sort yang sudah diterapkan; perubahan draft ditandai sampai Apply dipilih. Jika permintaan gagal, halaman dan kondisi aktif sebelumnya tetap tersedia.
+- Tab Form menampilkan satu record dari halaman aktif dengan nama/tipe kolom, penanda NULL, biner, dan cuplikan terpotong. Pilih record dari daftar atau gunakan tombol Record. Ctrl+G beralih grid/form; pilihan record tersinkron dan pergantian tampilan tidak membaca ulang server. Form memakai batas cuplikan yang sama dengan grid dan tetap baca saja.
+
+SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, beberapa kondisi filter/sort, editor nilai penuh, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -98,6 +106,7 @@ Struktur kode:
 | `native/navilite-core/src/ffi.rs` | API C, respons JSON UTF-8, penahanan panic, dan pelepasan memori |
 | `native/navilite-core/src/schema.rs` | Metadata lazy-load, pengutipan identifier, dan DDL yang sudah ada |
 | `native/navilite-core/src/table_page.rs` | Proyeksi SELECT terbatas, transaksi baca saja, dan frame biner NVLR |
+| `native/navilite-core/src/page_options.rs` | Validasi filter/sort, parameter bertipe, dan urutan primary key |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
 | `src/NaviLite.Desktop/Services/` | Wrapper native, serialisasi konfigurasi, dan penghapusan buffer sandi |
 | `src/NaviLite.Desktop/ViewModels/` | State dan command workspace WPF |
@@ -120,9 +129,12 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_schema_objects` | Handle, database, tabel opsional, kategori; daftar metadata objek |
 | `navilite_object_ddl` | Handle, database, objek; string CREATE TABLE/VIEW |
 | `navilite_table_page` | Handle, database, objek, offset, page size; `FfiBuffer` berisi frame NVLR |
+| `navilite_table_page_query` | Input halaman ditambah JSON filter/sort; `FfiBuffer` dengan format NVLR yang sama |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
+
+`navilite_table_page_query` menerima opsi seperti `{"filter":{"column":"name","operator":"contains","value":"sample"},"sort":{"column":"id","direction":"desc"}}`. `filter` dan `sort` opsional/null; `{}` memakai urutan default. Operator memakai camelCase (`equals`, `notEquals`, `contains`, `startsWith`, `greaterThan`, `lessThan`, `isNull`, `isNotNull`); arah hanya `asc`/`desc`. Nama kolom wajib cocok dengan metadata terbaru, field yang tidak dikenal ditolak, dan nilai dikirim sebagai parameter. API halaman lama tetap tersedia tanpa filter/sort. ABI produk dan format frame tetap 1.
 
 ### Frame NVLR v1
 
@@ -136,7 +148,7 @@ Semua integer di frame memakai little endian. Header 40 byte:
 | 4 | Versi frame (u32), saat ini 1 |
 | 8, 12 | Jumlah kolom dan baris (u32) |
 | 16, 24 | Offset halaman dan offset berikutnya (u64) |
-| 32 | Flags (u32): bit 0 ada halaman berikutnya, bit 1 diurutkan dengan primary key |
+| 32 | Flags (u32): bit 0 ada halaman berikutnya, bit 1 primary key menjadi bagian dari urutan |
 | 36 | Jumlah sel yang dipotong (u32) |
 
 Header diikuti metadata kolom berupa pasangan nama dan tipe SQL; setiap string diawali panjang byte u32. Berikutnya ada direktori `row_count + 1` offset absolut u32, termasuk akhir frame. Setiap baris diawali `column_count` offset sel u32 relatif terhadap awal baris. Sel berisi tag u8, panjang payload u32, lalu byte payload. Tag 0 = NULL, 1 = teks UTF-8, 2 = biner; bit 7 menandai cuplikan terpotong. C# memvalidasi header, direktori, batas sel, serta pagination sebelum mengekspos baris ke grid. Frame lama dibebaskan saat halaman diganti atau sesi diputus; SafeHandle juga menjadi pengaman finalisasi.
@@ -146,10 +158,10 @@ Header diikuti metadata kolom berupa pasangan nama dan tipe SQL; setiap string d
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.2.0
+./scripts/Set-Version.ps1 -Version 0.3.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.2.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.3.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

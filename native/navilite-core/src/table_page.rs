@@ -1,6 +1,6 @@
 //! NVLR v1: a bounded little-endian frame; see README for the wire layout.
-use crate::{connection, schema};
-use mysql_async::{prelude::Queryable, Row, Value};
+use crate::{connection, page_options::PageOptions, schema};
+use mysql_async::{prelude::Queryable, Params, Row, Value};
 
 const MAX_FRAME: usize = 8 * 1024 * 1024;
 const WIRE_BUDGET: usize = 4 * 1024 * 1024;
@@ -74,6 +74,24 @@ pub fn read(
     offset: u64,
     requested: u32,
 ) -> Result<Vec<u8>, String> {
+    read_with_options(
+        handle,
+        database,
+        table,
+        offset,
+        requested,
+        PageOptions::default(),
+    )
+}
+
+pub fn read_with_options(
+    handle: u64,
+    database: &str,
+    table: &str,
+    offset: u64,
+    requested: u32,
+    options: PageOptions,
+) -> Result<Vec<u8>, String> {
     if !(1..=1000).contains(&requested) {
         return Err("Page size must be between 1 and 1000 rows.".into());
     }
@@ -106,24 +124,15 @@ pub fn read(
                 format!("LEFT(CAST({name} AS CHAR CHARACTER SET utf8mb4), {TEXT_CHARACTERS}), CHAR_LENGTH(CAST({name} AS CHAR CHARACTER SET utf8mb4))")
             })
         }).collect::<Result<Vec<_>, String>>()?.join(", ");
-        let keys = columns
-            .iter()
-            .filter(|c| c.primary_key)
-            .map(|c| schema::identifier(&c.name))
-            .collect::<Result<Vec<_>, _>>()?;
-        let ordering = if keys.is_empty() {
-            String::new()
-        } else {
-            format!(" ORDER BY {}", keys.join(", "))
-        };
+        let (clauses, parameters, stable_order) = options.clauses(&columns)?;
         let sql = format!(
-            "SELECT {projection} FROM {qualified}{ordering} LIMIT {offset}, {}",
+            "SELECT {projection} FROM {qualified}{clauses} LIMIT {offset}, {}",
             limit + 1
         );
         conn.query_drop("START TRANSACTION READ ONLY")
             .await
             .map_err(|e| e.to_string())?;
-        let rows: Result<Vec<Row>, _> = conn.query(sql).await;
+        let rows: Result<Vec<Row>, _> = conn.exec(sql, Params::Positional(parameters)).await;
         let rollback = conn.query_drop("ROLLBACK").await;
         let mut rows = rows.map_err(|e| e.to_string())?;
         rollback.map_err(|e| e.to_string())?;
@@ -139,7 +148,7 @@ pub fn read(
         frame[12..16].copy_from_slice(&u32_bytes(rows.len()));
         frame[16..24].copy_from_slice(&offset.to_le_bytes());
         frame[24..32].copy_from_slice(&next.to_le_bytes());
-        let flags = u32::from(has_more) | if keys.is_empty() { 0 } else { 2 };
+        let flags = u32::from(has_more) | if stable_order { 2 } else { 0 };
         frame[32..36].copy_from_slice(&flags.to_le_bytes());
         for column in &columns {
             string(&mut frame, &column.name);

@@ -2,6 +2,7 @@
 
 use crate::{
     connection,
+    page_options::PageOptions,
     profiles::{self, ConnectionProfile},
     schema, table_page,
 };
@@ -201,6 +202,32 @@ pub unsafe extern "C" fn navilite_table_page(
     page_size: u32,
 ) -> FfiBuffer {
     buffer_boundary(|| table_page::read(handle, text(database)?, text(table)?, offset, page_size))
+}
+
+/// Reads a page using validated column/operator filters and server-side ordering.
+/// # Safety
+/// Database, table, and options must be valid NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_table_page_query(
+    handle: u64,
+    database: *const c_char,
+    table: *const c_char,
+    offset: u64,
+    page_size: u32,
+    options: *const c_char,
+) -> FfiBuffer {
+    buffer_boundary(|| {
+        let options: PageOptions = serde_json::from_str(text(options)?)
+            .map_err(|e| format!("Invalid data filter or sort options: {e}"))?;
+        table_page::read_with_options(
+            handle,
+            text(database)?,
+            text(table)?,
+            offset,
+            page_size,
+            options,
+        )
+    })
 }
 
 /// Releases a binary or error buffer, using its original pointer and length. Null is accepted.

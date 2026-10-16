@@ -40,7 +40,7 @@ fn sessions() -> &'static Mutex<HashMap<u64, Session>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn run<T>(future: impl Future<Output = Result<T, String>>) -> Result<T, String> {
+pub(crate) fn run<T>(future: impl Future<Output = Result<T, String>>) -> Result<T, String> {
     let runtime = RUNTIME.get_or_init(|| {
         Builder::new_multi_thread()
             .worker_threads(2)
@@ -71,7 +71,8 @@ fn options(
         .prefer_socket(false)
         .conn_ttl(Duration::from_secs(300))
         .pool_opts(pool)
-        .init(vec!["SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"]);
+        // SET NAMES must be reapplied after a pooled connection is reset as well.
+        .setup(vec!["SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"]);
     if profile.use_tls {
         let mut ssl = SslOpts::default();
         if let Some(path) = profile.ca_certificate.as_ref().filter(|p| !p.is_empty()) {
@@ -173,17 +174,31 @@ pub fn close(handle: u64) -> Result<(), String> {
 }
 
 pub fn databases(handle: u64) -> Result<Vec<String>, String> {
-    let pool = sessions()
-        .lock()
-        .map_err(|_| "Session registry is unavailable.")?
-        .get(&handle)
-        .ok_or("Connection is closed. Connect again to refresh databases.")?
-        .metadata
-        .clone();
+    let pool = metadata_pool(handle)?;
     run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
         conn.query("SHOW DATABASES")
             .await
             .map_err(|e| e.to_string())
     })
+}
+
+pub(crate) fn metadata_pool(handle: u64) -> Result<Pool, String> {
+    Ok(sessions()
+        .lock()
+        .map_err(|_| "Session registry is unavailable.")?
+        .get(&handle)
+        .ok_or("Connection is closed. Connect again to refresh databases.")?
+        .metadata
+        .clone())
+}
+
+pub(crate) fn workload_pool(handle: u64) -> Result<Pool, String> {
+    Ok(sessions()
+        .lock()
+        .map_err(|_| "Session registry is unavailable.")?
+        .get(&handle)
+        .ok_or("Connection is closed. Connect again to open data.")?
+        .workload
+        .clone())
 }

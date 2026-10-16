@@ -4,6 +4,25 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
+### Added
+
+- Lazy database object tree for tables, views, procedures, functions, triggers, and events, plus columns, indexes, and foreign keys.
+- Local filtering of loaded object names, expandable metadata branches, and existing object DDL inspection.
+- Read-only table/view preview with previous/next/reload, primary-key ordering when available, and adaptive pages of up to 1,000 rows.
+- Server-side text/BLOB projection limits, explicit truncated-cell markers, and an 8 MiB native frame limit.
+- NVLR v1 binary frames with row/cell offset directories, generated buffer FFI, validated SafeHandle ownership, and per-cell UTF-8/hex display.
+- WPF data explorer workspace with row/column virtualization and metadata/data pool separation.
+
+### Fixed
+
+- Reapply the utf8mb4 session setup after pooled connections are reset, preserving non-ASCII metadata and preview text on servers with other default character sets.
+
+### Scope
+
+- The grid is read only. SQL filtering/sorting, batch editing, Form View, full-value editors, user SQL execution, SSH, and transfer tools remain pending.
+
 ## [0.1.0] - 2026-10-16
 
 ### Added

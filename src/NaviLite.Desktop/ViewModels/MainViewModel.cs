@@ -7,7 +7,7 @@ using NaviLite.Desktop.Services;
 
 namespace NaviLite.Desktop.ViewModels;
 
-public sealed class MainViewModel : INotifyPropertyChanged
+public sealed partial class MainViewModel : INotifyPropertyChanged
 {
     private readonly NativeCore _core = new();
     private ConnectionProfile? _selectedProfile;
@@ -32,14 +32,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ConnectCommand = new(() => RunAsync(ConnectAsync), () => CanEdit);
         DisconnectCommand = new(() => RunAsync(DisconnectAsync), () => !IsBusy && IsConnected);
         RefreshCommand = new(() => RunAsync(RefreshDatabasesAsync), () => !IsBusy && IsConnected);
-        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand];
+        OpenTableCommand = new(OpenSelectedAsync, () => CanBrowse && SelectedNode?.CanOpen == true);
+        NextPageCommand = new(() => RunAsync(NextPageAsync), () => CanBrowse && Page?.HasMore == true);
+        PreviousPageCommand = new(() => RunAsync(PreviousPageAsync), () => CanBrowse && _pageHistory.Count > 0);
+        ReloadPageCommand = new(() => RunAsync(ReloadPageAsync), () => CanBrowse && Page is not null);
+        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand];
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action? PasswordClearRequested;
     public event Action<string>? PasswordRestoreRequested;
     public ObservableCollection<ConnectionProfile> Profiles { get; } = [];
-    public ObservableCollection<string> Databases { get; } = [];
+    public ObservableCollection<SchemaNode> Databases { get; } = [];
     public ObservableCollection<string> Activity { get; } = [];
     public string[] Environments { get; } = ["local", "staging", "production"];
     public AsyncCommand NewCommand { get; }
@@ -49,7 +53,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public AsyncCommand ConnectCommand { get; }
     public AsyncCommand DisconnectCommand { get; }
     public AsyncCommand RefreshCommand { get; }
-    public string AppVersion => typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.1.0";
+    public string AppVersion => typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? throw new InvalidOperationException("The application version is missing.");
     public string WindowTitle => $"NaviLite · v{AppVersion}";
     public bool IsBusy => _isBusy;
     public bool IsConnected => _handle != 0;
@@ -177,13 +181,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         NotifyConnection();
         Log($"Connected to {profile.Name}.");
         await RefreshDatabasesAsync();
+        SelectedWorkspaceTab = 1;
     }
 
     public async Task DisconnectAsync()
     {
         ulong handle = _handle;
         _handle = 0;
+        ClearPreview();
         Databases.Clear();
+        SelectedNode = null;
         ServerSummary = "No active connection";
         ActiveConnection = "Connect to explore your databases";
         NotifyConnection();
@@ -197,7 +204,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = "Loading databases...";
         var databases = await _core.ListDatabasesAsync(_handle);
         Databases.Clear();
-        foreach (string database in databases) Databases.Add(database);
+        foreach (string database in databases) Databases.Add(SchemaNode.DatabaseNode(database));
+        SelectedNode = null;
+        ApplyFilter();
         Status = $"Connected · {Databases.Count} databases available.";
         Log(Status);
     }
@@ -225,6 +234,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Changed(nameof(IsBusy));
         Changed(nameof(IsConnected));
         Changed(nameof(CanEdit));
+        Changed(nameof(CanBrowse));
         RefreshCommands();
     }
 

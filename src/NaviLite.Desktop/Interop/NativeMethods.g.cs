@@ -63,6 +63,38 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiResult navilite_databases_list(ulong handle);
 
         /// <summary>
+        ///  Lists one metadata category without loading other branches.
+        ///  # Safety
+        ///  Database, table, and category must be valid NUL-terminated UTF-8 strings for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_schema_objects", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_schema_objects(ulong handle, byte* database, byte* table, byte* category);
+
+        /// <summary>
+        ///  Gets the existing CREATE TABLE or CREATE VIEW definition, without executing it.
+        ///  # Safety
+        ///  Database and table must be valid NUL-terminated UTF-8 strings for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_object_ddl", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_object_ddl(ulong handle, byte* database, byte* table);
+
+        /// <summary>
+        ///  Reads a bounded NVLR v1 page. Its allocation must be released with navilite_buffer_free.
+        ///  # Safety
+        ///  Database and table must be valid NUL-terminated UTF-8 strings for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_table_page", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiBuffer navilite_table_page(ulong handle, byte* database, byte* table, ulong offset, uint page_size);
+
+        /// <summary>
+        ///  Releases a binary or error buffer, using its original pointer and length. Null is accepted.
+        ///  # Safety
+        ///  Data and length must identify an unfreed allocation returned in FfiBuffer by this library.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_buffer_free", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern void navilite_buffer_free(byte* data, nuint length);
+
+        /// <summary>
         ///  Releases an allocation returned in FfiResult.data. Null is accepted.
         ///  # Safety
         ///  Data must be null or an unfreed pointer returned by this library. Never pass a C# allocation.
@@ -78,6 +110,14 @@ namespace NaviLite.Desktop.Interop
     {
         public int code;
         public byte* data;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct FfiBuffer
+    {
+        public int code;
+        public byte* data;
+        public nuint length;
     }
 
 

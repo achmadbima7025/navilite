@@ -1,11 +1,24 @@
 <Window x:Class="NaviLite.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:NaviLite.Desktop.Models"
         Title="{Binding WindowTitle}" Width="1240" Height="820" MinWidth="1040" MinHeight="740"
         WindowStartupLocation="CenterScreen" Background="#F4F6FA" Foreground="#17243B"
         FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <HierarchicalDataTemplate DataType="{x:Type models:SchemaNode}" ItemsSource="{Binding Children}">
+            <Grid ToolTip="{Binding Detail}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="18" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Icon}" Foreground="#177D70" VerticalAlignment="Top" Margin="0,3,0,0" />
+                <StackPanel Grid.Column="1" Margin="0,2,0,4">
+                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Detail}" Foreground="#8090A7" FontSize="10" TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Detail}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </HierarchicalDataTemplate>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="14,8" />
             <Setter Property="Margin" Value="0,0,8,0" />
@@ -57,10 +70,10 @@
             </Grid>
         </Border>
         <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="250" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <Border Background="White" BorderBrush="#E0E6F0" BorderThickness="0,0,1,0" Padding="18,24">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="150" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <TextBlock Text="CONNECTIONS" Foreground="#8090A7" FontWeight="SemiBold" FontSize="11" Margin="4,0,0,14" />
                     <ListBox Grid.Row="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" IsEnabled="{Binding CanEdit}"
                              BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -81,15 +94,30 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <Grid Grid.Row="2" Margin="4,18,0,10">
-                        <TextBlock Text="DATABASES" Foreground="#8090A7" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                        <TextBlock Text="DATABASE EXPLORER" Foreground="#8090A7" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
                         <Button Content="↻" Command="{Binding RefreshCommand}" HorizontalAlignment="Right" Margin="0" Padding="8,3" ToolTip="Refresh databases" />
                     </Grid>
-                    <ListBox Grid.Row="3" ItemsSource="{Binding Databases}" BorderThickness="0" Background="Transparent" Padding="4">
-                        <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Margin="4,6" /></DataTemplate></ListBox.ItemTemplate>
-                    </ListBox>
+                    <StackPanel Grid.Row="3" Margin="0,0,0,10">
+                        <TextBlock Text="Filter loaded objects" Foreground="#8090A7" FontSize="10" Margin="2,0,0,5" />
+                        <TextBox Text="{Binding ObjectFilter, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanBrowse}" ToolTip="Filter loaded object names; unopened branches stay available" AutomationProperties.Name="Filter loaded objects" />
+                    </StackPanel>
+                    <TreeView x:Name="SchemaTree" Grid.Row="4" ItemsSource="{Binding Databases}" BorderThickness="0" Background="Transparent"
+                              IsEnabled="{Binding CanBrowse}" TreeViewItem.Expanded="Schema_Expanded" SelectedItemChanged="Schema_SelectedItemChanged"
+                              MouseDoubleClick="Schema_MouseDoubleClick" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolVisibility}}" />
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                    </TreeView>
                 </Grid>
             </Border>
-            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <TabControl Grid.Column="1" Margin="16,18,16,12" Background="Transparent" BorderThickness="0" SelectedIndex="{Binding SelectedWorkspaceTab}">
+              <TabItem Header="Connection">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="28,24">
                     <TextBlock Text="Connection workspace" FontSize="27" FontWeight="SemiBold" />
                     <TextBlock Text="A direct connection to your data." Foreground="#75849A" Margin="0,7,0,22" />
@@ -152,7 +180,45 @@
                     <TextBlock Text="Passwords are stored in Windows Credential Manager, separately from connection profiles."
                                Foreground="#8090A7" FontSize="11" Margin="2,18,0,0" TextWrapping="Wrap" />
                 </StackPanel>
-            </ScrollViewer>
+              </ScrollViewer>
+              </TabItem>
+              <TabItem Header="Data explorer">
+                <Grid Margin="14,16">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding ObjectTitle}" FontSize="23" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ServerSummary}" Foreground="#75849A" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Disconnect" Command="{Binding DisconnectCommand}" VerticalAlignment="Top" Margin="10,0,0,0" />
+                    </Grid>
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,14">
+                        <Button Content="Open selected" Command="{Binding OpenTableCommand}" />
+                        <Button Content="Refresh data" Command="{Binding ReloadPageCommand}" />
+                        <Button Content="← Previous" Command="{Binding PreviousPageCommand}" />
+                        <Button Content="Next →" Command="{Binding NextPageCommand}" Margin="0" />
+                    </WrapPanel>
+                    <TabControl Grid.Row="2" Background="White" BorderBrush="#E0E6F0">
+                        <TabItem Header="Data · read only">
+                            <DockPanel Margin="8">
+                                <TextBlock DockPanel.Dock="Bottom" Text="{Binding PageSummary}" TextWrapping="Wrap" Foreground="#75849A" FontSize="11" Margin="4,12,4,4" />
+                                <DataGrid x:Name="PreviewGrid" ItemsSource="{Binding Page.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                          CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" CanUserReorderColumns="True"
+                                          EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                          ScrollViewer.CanContentScroll="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="29"
+                                          Background="White" BorderThickness="0" HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD"
+                                          SelectionUnit="CellOrRowHeader" ClipboardCopyMode="IncludeHeader" AutomationProperties.Name="Read-only table data preview" />
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Definition">
+                            <TextBox Text="{Binding Ddl, Mode=OneWay}" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="13"
+                                     AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="8" BorderThickness="0" />
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+              </TabItem>
+            </TabControl>
         </Grid>
     </DockPanel>
 </Window>

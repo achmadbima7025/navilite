@@ -3,3 +3,5 @@
 mod connection;
 pub mod ffi;
 mod profiles;
+mod schema;
+mod table_page;

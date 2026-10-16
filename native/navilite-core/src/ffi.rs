@@ -3,6 +3,7 @@
 use crate::{
     connection,
     profiles::{self, ConnectionProfile},
+    schema, table_page,
 };
 use serde_json::{json, Value};
 use std::{
@@ -15,6 +16,30 @@ use zeroize::Zeroizing;
 pub struct FfiResult {
     pub code: i32,
     pub data: *mut c_char,
+}
+
+#[repr(C)]
+pub struct FfiBuffer {
+    pub code: i32,
+    pub data: *mut u8,
+    pub length: usize,
+}
+
+fn buffer_boundary(operation: impl FnOnce() -> Result<Vec<u8>, String>) -> FfiBuffer {
+    let result = catch_unwind(AssertUnwindSafe(operation))
+        .unwrap_or_else(|_| Err("The native data operation failed unexpectedly.".into()));
+    let (code, payload) = match result {
+        Ok(bytes) => (0, bytes),
+        Err(message) => (-1, json!({ "message": message }).to_string().into_bytes()),
+    };
+    let mut allocation = payload.into_boxed_slice();
+    let buffer = FfiBuffer {
+        code,
+        data: allocation.as_mut_ptr(),
+        length: allocation.len(),
+    };
+    std::mem::forget(allocation);
+    buffer
 }
 
 fn boundary(operation: impl FnOnce() -> Result<Value, String>) -> FfiResult {
@@ -129,6 +154,65 @@ pub extern "C" fn navilite_conn_close(handle: u64) -> FfiResult {
 #[no_mangle]
 pub extern "C" fn navilite_databases_list(handle: u64) -> FfiResult {
     boundary(|| serde_json::to_value(connection::databases(handle)?).map_err(|e| e.to_string()))
+}
+
+/// Lists one metadata category without loading other branches.
+/// # Safety
+/// Database, table, and category must be valid NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_schema_objects(
+    handle: u64,
+    database: *const c_char,
+    table: *const c_char,
+    category: *const c_char,
+) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(schema::objects(
+            handle,
+            text(database)?,
+            text(table)?,
+            text(category)?,
+        )?)
+        .map_err(|e| e.to_string())
+    })
+}
+
+/// Gets the existing CREATE TABLE or CREATE VIEW definition, without executing it.
+/// # Safety
+/// Database and table must be valid NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_object_ddl(
+    handle: u64,
+    database: *const c_char,
+    table: *const c_char,
+) -> FfiResult {
+    boundary(|| Ok(json!(schema::ddl(handle, text(database)?, text(table)?)?)))
+}
+
+/// Reads a bounded NVLR v1 page. Its allocation must be released with navilite_buffer_free.
+/// # Safety
+/// Database and table must be valid NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_table_page(
+    handle: u64,
+    database: *const c_char,
+    table: *const c_char,
+    offset: u64,
+    page_size: u32,
+) -> FfiBuffer {
+    buffer_boundary(|| table_page::read(handle, text(database)?, text(table)?, offset, page_size))
+}
+
+/// Releases a binary or error buffer, using its original pointer and length. Null is accepted.
+/// # Safety
+/// Data and length must identify an unfreed allocation returned in FfiBuffer by this library.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_buffer_free(data: *mut u8, length: usize) {
+    if !data.is_null() {
+        drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            data, length,
+        )));
+    }
 }
 
 /// Releases an allocation returned in FfiResult.data. Null is accepted.

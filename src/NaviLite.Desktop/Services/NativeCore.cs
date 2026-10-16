@@ -7,7 +7,7 @@ using NaviLite.Desktop.Models;
 
 namespace NaviLite.Desktop.Services;
 
-public sealed unsafe class NativeCore
+public sealed unsafe partial class NativeCore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

@@ -1,0 +1,11 @@
+.dev/
+.env
+.env.*
+!.env.example
+target/
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo

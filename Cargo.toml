@@ -1,0 +1,3 @@
+[workspace]
+members = ["native/navilite-core"]
+resolver = "2"

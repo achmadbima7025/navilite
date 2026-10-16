@@ -1,0 +1,32 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: rustup show
+      - name: Check Rust formatting
+        shell: pwsh
+        run: cargo fmt --all -- --check
+      - name: Build application
+        shell: pwsh
+        run: ./scripts/Build.ps1 -Configuration Release
+      - name: Analyze Rust
+        shell: pwsh
+        run: cargo clippy --workspace --locked -- -D warnings
+      - name: Check generated bindings
+        shell: pwsh
+        run: |
+          git diff --exit-code -- src/NaviLite.Desktop/Interop/NativeMethods.g.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Generated C# bindings are out of date.' }

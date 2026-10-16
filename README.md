@@ -45,36 +45,85 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi
+## Implementasi awal: 0.1.0
 
-Fondasi menggunakan WPF untuk Windows dan Rust `cdylib` untuk core. Implementasi fitur koneksi database, editor, dan transfer belum dimulai.
+Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
-Struktur:
+- Pembuatan, pemilihan, penyimpanan, dan penghapusan profil koneksi.
+- Label lingkungan local, staging, dan production dengan indikator warna.
+- Koneksi MySQL/MariaDB melalui TCP dan TLS dengan verifikasi sertifikat serta hostname. Sertifikat CA khusus dapat dipilih; verifikasi tidak dapat dinonaktifkan dan TLS tidak turun otomatis ke plaintext.
+- Pemeriksaan autentikasi, versi server, ID sesi, dan latensi koneksi.
+- Buka/tutup sesi dan daftar database melalui metadata pool terpisah dari workload pool.
+- Operasi native di background thread, runtime Tokio bersama, batas waktu 10 detik, serta penutupan sesi saat aplikasi ditutup.
+- Metadata di `%LOCALAPPDATA%/NaviLite/connections.json`. Sandi yang diingat berada di Windows Credential Manager dengan service `NaviLite.MySQL` dan ID profil sebagai key.
 
-- `NaviLite.sln` dan `src/NaviLite.Desktop/`: aplikasi WPF dari template standar .NET.
-- `Cargo.toml` dan `native/navilite-core/`: workspace Rust dan library core minimal.
-- `scripts/`: aktivasi, pemeriksaan, dan build.
+Satu sesi aktif didukung pada UI awal. Putuskan sesi sebelum mengganti atau mengubah profil. Tombol Test connection hanya membuka koneksi sementara dan tidak menyimpan profil. Kolom sandi yang belum diubah memakai sandi tersimpan jika Remember password aktif; mengosongkan kolom setelah mengeditnya mengirim sandi kosong secara eksplisit.
 
-Build kedua komponen:
+SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, navigasi objek, editor data/SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+
+## Build dan jalankan
 
 ```powershell
 ./scripts/Build.ps1
+./scripts/Run.ps1
 ```
 
-Jalankan jendela WPF awal:
+`Run.ps1` melakukan build terlebih dahulu. Build Cargo menghasilkan `Interop/NativeMethods.g.cs` melalui csbindgen; build .NET menyalin `navilite_core.dll` ke direktori aplikasi. Jalankan build gabungan setelah mengubah Rust atau kontrak FFI.
+
+Build Release:
+
+```powershell
+./scripts/Build.ps1 -Configuration Release
+./scripts/Run.ps1 -Configuration Release
+```
+
+Struktur kode:
+
+| Lokasi | Tanggung jawab |
+| --- | --- |
+| `native/navilite-core/src/profiles.rs` | Validasi profil, metadata lokal, dan Windows Credential Manager |
+| `native/navilite-core/src/connection.rs` | Runtime Tokio, pool, koneksi TCP/TLS, dan metadata database |
+| `native/navilite-core/src/ffi.rs` | API C, respons JSON UTF-8, penahanan panic, dan pelepasan memori |
+| `src/NaviLite.Desktop/Services/` | Wrapper native, serialisasi konfigurasi, dan penghapusan buffer sandi |
+| `src/NaviLite.Desktop/ViewModels/` | State dan command workspace WPF |
+| `src/NaviLite.Desktop/Interop/` | Binding yang dihasilkan; jangan diedit manual |
+
+## Kontrak native awal
+
+Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berarti berhasil, `code = -1` berarti gagal dengan payload `{ "message": "..." }`. `data` adalah JSON UTF-8 berakhir NUL milik Rust. C# selalu memanggil `navilite_result_free` sekali setelah membaca respons. Input hanya dipin selama pemanggilan; Rust tidak menyimpan pointer C#.
+
+| Fungsi | Input / hasil |
+| --- | --- |
+| `navilite_core_info` | Versi produk dan versi ABI (1) |
+| `navilite_profiles_list` | Daftar metadata profil, tanpa sandi |
+| `navilite_profile_save` | JSON profil + sandi opsional; mengembalikan profil |
+| `navilite_profile_delete` | ID profil; menghapus metadata dan kredensial |
+| `navilite_conn_test` | JSON profil + sandi opsional; informasi server tanpa sesi tetap |
+| `navilite_conn_open` | JSON profil + sandi opsional; informasi server dan handle sesi |
+| `navilite_conn_close` | Handle sesi; idempotent |
+| `navilite_databases_list` | Handle sesi; daftar nama database |
+
+Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Workload pool disiapkan untuk inkrement editor; koneksi per tab belum diimplementasikan.
+
+## Versioning dan alur development
+
+Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
+
+```powershell
+./scripts/Set-Version.ps1 -Version 0.2.0
+```
+
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.2.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+
+Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 
 ```powershell
 . ./scripts/Enter-Dev.ps1
-dotnet run --project src/NaviLite.Desktop
+cargo fmt --all -- --check
+cargo clippy --workspace --locked -- -D warnings
+./scripts/Build.ps1 -Configuration Release
 ```
 
-Jendela masih kosong sesuai template. Core Rust belum dihubungkan ke aplikasi; kontrak FFI dan generator binding `csbindgen` ditambahkan saat implementasi API dimulai. Uji integrasi toolchain sementara berada di `.dev/smoke/` dan bukan kode aplikasi.
-
-## Verifikasi setup, 16 Oktober 2026
-
-- Build solution WPF berhasil tanpa error atau warning.
-- Build workspace Rust, pemeriksaan rustfmt, dan Clippy dengan warning sebagai error berhasil.
-- Uji DLL Rust dari aplikasi console C# berhasil mengembalikan nilai `42` melalui C ABI.
-- MySQL lokal merespons koneksi TCP pada `127.0.0.1:3306`; autentikasi belum diuji.
+Workflow GitHub Actions menjalankan format, build Windows x64, pemeriksaan binding, dan Clippy tanpa menjalankan test. Autentikasi ke server developer memerlukan kredensial yang dimasukkan pengguna; jangan mengubah akun, konfigurasi server, atau database untuk memverifikasi setup.
 
 Referensi instalasi: [Rust di Windows](https://rust-lang.github.io/rustup/installation/windows-msvc.html), [.NET install script](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script).

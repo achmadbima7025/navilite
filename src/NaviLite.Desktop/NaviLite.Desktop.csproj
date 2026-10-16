@@ -6,6 +6,24 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <NativeConfiguration Condition="'$(Configuration)' == 'Release'">release</NativeConfiguration>
+    <NativeConfiguration Condition="'$(NativeConfiguration)' == ''">debug</NativeConfiguration>
+  </PropertyGroup>
+
+  <Target Name="RequireNativeCore" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/../../target/$(NativeConfiguration)/navilite_core.dll')"
+           Text="Build the Rust core first using ./scripts/Build.ps1." />
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/Interop/NativeMethods.g.cs')"
+           Text="Native bindings are missing. Run ./scripts/Build.ps1." />
+  </Target>
+
+  <ItemGroup>
+    <None Include="../../target/$(NativeConfiguration)/navilite_core.dll"
+          Link="navilite_core.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

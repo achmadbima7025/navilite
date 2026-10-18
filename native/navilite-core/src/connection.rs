@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Mutex, OnceLock,
+        Arc, Mutex, OnceLock,
     },
     time::{Duration, Instant},
 };
@@ -24,6 +24,7 @@ static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 struct Session {
     metadata: Pool,
     workload: Pool,
+    history: Arc<Mutex<crate::history::QueryHistory>>,
 }
 
 #[derive(Serialize)]
@@ -148,7 +149,14 @@ pub fn open(
             sessions()
                 .lock()
                 .map_err(|_| "Session registry is unavailable.")?
-                .insert(handle, Session { metadata, workload });
+                .insert(
+                    handle,
+                    Session {
+                        metadata,
+                        workload,
+                        history: Arc::default(),
+                    },
+                );
             info.handle = handle;
             Ok(info)
         }),
@@ -178,9 +186,14 @@ pub fn databases(handle: u64) -> Result<Vec<String>, String> {
     let pool = metadata_pool(handle)?;
     run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-        conn.query("SHOW DATABASES")
-            .await
-            .map_err(|e| e.to_string())
+        crate::history::query(
+            handle,
+            "Databases",
+            "",
+            "SHOW DATABASES",
+            conn.query("SHOW DATABASES"),
+        )
+        .await
     })
 }
 
@@ -201,5 +214,17 @@ pub(crate) fn workload_pool(handle: u64) -> Result<Pool, String> {
         .get(&handle)
         .ok_or("Connection is closed. Connect again to open data.")?
         .workload
+        .clone())
+}
+
+pub(crate) fn query_history(
+    handle: u64,
+) -> Result<Arc<Mutex<crate::history::QueryHistory>>, String> {
+    Ok(sessions()
+        .lock()
+        .map_err(|_| "Session registry is unavailable.")?
+        .get(&handle)
+        .ok_or("Connection is closed. Open a session to read SQL history.")?
+        .history
         .clone())
 }

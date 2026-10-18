@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.4.0
+## Status aplikasi: 0.5.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -87,7 +87,16 @@ Inkrement 0.4.0 menambahkan Cell Inspector baca saja:
 - Tabel/view tanpa primary key yang dapat dipakai, key terlalu besar (maksimal 4 KiB per kolom dan 16 KiB per record), tipe primary key yang belum didukung (termasuk BIT, TIMESTAMP, ENUM, dan SET), record yang hilang, perubahan skema, atau kegagalan pembacaan menghasilkan viewer cuplikan dengan alasan yang jelas. Key yang didukung meliputi integer/desimal/float, DATE/DATETIME/TIME/YEAR, teks, dan biner. Tidak memakai offset halaman untuk mencari ulang record.
 - Formatter JSON berlaku pada nilai teks lengkap sampai 256 KiB dan kedalaman 64; format tampilan tidak mengubah byte sumber. Copy value menyalin teks, hasil format JSON saat tab JSON aktif, atau heksadesimal untuk biner. Save loaded bytes menyimpan hanya byte yang sudah dimuat: biner asli atau teks UTF-8 tanpa BOM, termasuk byte NUL. Nilai NULL tidak disamakan dengan berkas kosong.
 
-SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, beberapa kondisi filter/sort, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.5.0 menambahkan salin baris dan riwayat SQL sesi:
+
+- Pilih beberapa baris grid dengan Ctrl/Shift, lalu gunakan Copy rows as untuk CSV, TSV, atau array JSON. Pada Form View, salinan memakai record aktif. Hanya baris halaman aktif yang disalin, menurut urutan halaman, dengan seluruh kolom menurut urutan skema; perpindahan halaman mengganti pilihan baris.
+- CSV/TSV menyertakan header dan CRLF antar-record. Header dan seluruh nilai non-NULL diberi kutip ganda, termasuk pelolosan kutip, delimiter, serta baris baru dalam sel. NULL memakai konvensi `\N` tanpa kutip, string kosong memakai `""`, dan biner memakai teks `0xHEX`. Nilai teks literal `\N` tetap diberi kutip. JSON memakai `null` untuk NULL dan string untuk seluruh nilai lain, termasuk angka agar presisi BIGINT/DECIMAL tidak berubah, serta `0xHEX` untuk biner.
+- Penyalinan memakai frame halaman tanpa pembacaan ulang server. Jika ada sel terpotong, seluruh permintaan ditolak sebelum clipboard diubah. Output dibatasi 8 MiB UTF-8. CSV/TSV menolak NUL di dalam teks; JSON dapat menyalinnya sebagai escape. Gunakan Cell Inspector untuk menyimpan byte sel yang telah dimuat.
+- Tab SQL history menampilkan waktu mulai, durasi statement, konteks, operasi, hasil Success/Error/Interrupted, dan template SQL. Query metadata, daftar database, DDL, pembacaan halaman/sel, serta START TRANSACTION READ ONLY dan ROLLBACK dicatat. Durasi berasal dari Rust dan tidak mencakup rendering UI atau menunggu pool sebelum query dimulai. Operasi yang dihentikan saat query masih berjalan, termasuk timeout, tercatat Interrupted.
+- Riwayat dibatasi 200 statement per koneksi dan 16 KiB UTF-8 per template SQL, dengan penanda ketika teks dipotong. Nilai parameter, hasil query, pesan error server, password, dan handshake autentikasi tidak dicatat dalam riwayat SQL. Query internal driver untuk setup/reset pool juga tidak ditampilkan. Riwayat hanya berada di memori; Refresh/Clear tidak menjalankan SQL atau mengubah server.
+- Panel riwayat diperbarui setelah operasi selesai. Salinan UI terakhir tetap terlihat setelah disconnect dan diganti saat membuka koneksi berikutnya; registry native dilepas bersama sesi. Clear tersedia selama koneksi aktif.
+
+SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, beberapa kondisi filter/sort, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -116,8 +125,10 @@ Struktur kode:
 | `native/navilite-core/src/table_page.rs` | Proyeksi SELECT terbatas, transaksi baca saja, dan frame biner NVLR |
 | `native/navilite-core/src/page_options.rs` | Validasi filter/sort, parameter bertipe, dan urutan primary key |
 | `native/navilite-core/src/cell_value.rs` | Identitas record selama halaman hidup, pembacaan nilai terbatas, dan frame NVLC |
+| `native/navilite-core/src/history.rs` | Riwayat template SQL terbatas per sesi dan pencatatan durasi/hasil/interupsi |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
 | `src/NaviLite.Desktop/CellInspectorWindow.xaml` | Viewer teks/JSON/hex baca saja dan penyimpanan byte yang dimuat |
+| `src/NaviLite.Desktop/Services/RowCopy.cs` | Pemformatan CSV/TSV/JSON dari frame dengan batas output clipboard |
 | `src/NaviLite.Desktop/Services/` | Wrapper native, serialisasi konfigurasi, dan penghapusan buffer sandi |
 | `src/NaviLite.Desktop/ViewModels/` | State dan command workspace WPF |
 | `src/NaviLite.Desktop/Interop/` | Binding yang dihasilkan; jangan diedit manual |
@@ -136,6 +147,8 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_conn_open` | JSON profil + sandi opsional; informasi server dan handle sesi |
 | `navilite_conn_close` | Handle sesi; idempotent |
 | `navilite_databases_list` | Handle sesi; daftar nama database |
+| `navilite_history_list` | Handle sesi; hingga 200 template SQL terbaru, durasi, waktu mulai Unix ms, konteks, hasil, dan penanda pemotongan |
+| `navilite_history_clear` | Handle sesi; menghapus riwayat native dalam memori, tanpa menjalankan SQL |
 | `navilite_schema_objects` | Handle, database, tabel opsional, kategori; daftar metadata objek |
 | `navilite_object_ddl` | Handle, database, objek; string CREATE TABLE/VIEW |
 | `navilite_table_page` | Handle, database, objek, offset, page size; `FfiBuffer` berisi frame NVLR |
@@ -179,10 +192,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.4.0
+./scripts/Set-Version.ps1 -Version 0.5.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.4.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.5.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

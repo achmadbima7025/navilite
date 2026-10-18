@@ -3,6 +3,7 @@
 mod cell_value;
 mod connection;
 pub mod ffi;
+mod history;
 mod page_options;
 mod profiles;
 mod schema;

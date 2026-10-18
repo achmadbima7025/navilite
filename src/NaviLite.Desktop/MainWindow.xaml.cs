@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Microsoft.Win32;
 using NaviLite.Desktop.ViewModels;
 using NaviLite.Desktop.Models;
+using NaviLite.Desktop.Services;
 
 namespace NaviLite.Desktop;
 
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _viewModel;
         _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
+        _viewModel.RowsCopyRequested += text => Clipboard.SetText(text);
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.Page)) RebuildGridColumns();
@@ -96,6 +98,15 @@ public partial class MainWindow : Window
     {
         if (sender is FrameworkElement { DataContext: FormField field } && _viewModel.SelectedRecord is { } row)
             await _viewModel.InspectCellAsync(row, field.Name);
+    }
+
+    private async void CopyRows_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string formatName } || !Enum.TryParse<RowCopyFormat>(formatName, out var format)) return;
+        IEnumerable<NativeRow> selection = _viewModel.DataViewIndex == 0
+            ? PreviewGrid.SelectedItems.OfType<NativeRow>().ToArray()
+            : _viewModel.SelectedRecord is { } row ? [row] : [];
+        await _viewModel.CopyRowsAsync(selection, format);
     }
 
     private async void Schema_Expanded(object sender, RoutedEventArgs e)

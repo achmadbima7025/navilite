@@ -63,6 +63,18 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiResult navilite_databases_list(ulong handle);
 
         /// <summary>
+        ///  Lists up to 200 internal SQL templates for this session. Bound values are excluded.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_history_list", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_history_list(ulong handle);
+
+        /// <summary>
+        ///  Clears the in-memory SQL history without executing SQL or modifying the server.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_history_clear", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_history_clear(ulong handle);
+
+        /// <summary>
         ///  Lists one metadata category without loading other branches.
         ///  # Safety
         ///  Database, table, and category must be valid NUL-terminated UTF-8 strings for this call.

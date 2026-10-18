@@ -4,6 +4,20 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-18
+
+### Added
+
+- CSV/TSV/JSON clipboard copying for current-page grid multi-selection and the active Form View record, with headers, NULL/empty/binary handling, and exact numeric text preservation.
+- Atomic copy preparation with an 8 MiB UTF-8 output limit; truncated cells are rejected before clipboard updates, and embedded NUL text requires JSON.
+- Session SQL history with start time, native statement duration, operation/context, and success/error/interrupted outcomes, including interruption on operation timeout.
+- Native tracing of database/schema/DDL/page/cell reads and explicit read-only transaction boundaries; bound values, results, and server error details are excluded.
+- In-memory limits of 200 entries per session and 16 KiB per SQL template, plus additive list/clear FFI APIs and a WPF history viewer with automatic/manual refresh and clear.
+
+### Scope
+
+- Row copying uses complete values from the current page and keeps non-NULL JSON values as strings. SQL INSERT/UPDATE formats and full-table export remain pending. History covers application-issued SQL after connection, excludes authentication and driver setup/reset, and is not persisted to disk. Data editing, user SQL execution, SSH, and transfers remain pending.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added

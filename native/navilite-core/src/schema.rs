@@ -1,4 +1,4 @@
-use crate::connection;
+use crate::{connection, history};
 use mysql_async::{params, prelude::Queryable, Conn, Row};
 use serde::Serialize;
 
@@ -53,10 +53,14 @@ pub fn objects(
     let pool = connection::metadata_pool(handle)?;
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-        let rows: Vec<(String, String)> = conn
-            .exec(sql, params! { "database" => database, "table" => table })
-            .await
-            .map_err(|e| e.to_string())?;
+        let rows: Vec<(String, String)> = history::query(
+            handle,
+            "Schema objects",
+            database,
+            sql,
+            conn.exec(sql, params! { "database" => database, "table" => table }),
+        )
+        .await?;
         Ok(rows
             .into_iter()
             .map(|(name, detail)| SchemaObject {
@@ -68,10 +72,21 @@ pub fn objects(
     })
 }
 
-pub async fn columns(conn: &mut Conn, database: &str, table: &str) -> Result<Vec<Column>, String> {
-    let rows: Vec<(String, String, String, String)> = conn.exec(
-        "SELECT COLUMN_NAME, COLUMN_TYPE, DATA_TYPE, COLUMN_KEY FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
-        (database, table)).await.map_err(|e| e.to_string())?;
+pub async fn columns(
+    conn: &mut Conn,
+    handle: u64,
+    database: &str,
+    table: &str,
+) -> Result<Vec<Column>, String> {
+    let sql = "SELECT COLUMN_NAME, COLUMN_TYPE, DATA_TYPE, COLUMN_KEY FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION";
+    let rows: Vec<(String, String, String, String)> = history::query(
+        handle,
+        "Column metadata",
+        &format!("{database}.{table}"),
+        sql,
+        conn.exec(sql, (database, table)),
+    )
+    .await?;
     if rows.is_empty() {
         return Err("The table is unavailable, empty of columns, or not visible to this account. Refresh its schema.".into());
     }
@@ -119,11 +134,15 @@ pub fn ddl(handle: u64, database: &str, table: &str) -> Result<String, String> {
     let pool = connection::metadata_pool(handle)?;
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-        let row: Row = conn
-            .query_first(sql)
-            .await
-            .map_err(|e| e.to_string())?
-            .ok_or("The server returned no object definition.")?;
+        let row: Row = history::query(
+            handle,
+            "Object definition",
+            &format!("{database}.{table}"),
+            &sql,
+            conn.query_first(&sql),
+        )
+        .await?
+        .ok_or("The server returned no object definition.")?;
         row.get_opt::<String, _>(1)
             .ok_or("The object definition is missing.")?
             .map_err(|_| "The server returned an invalid object definition.".into())

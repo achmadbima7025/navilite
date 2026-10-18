@@ -1,5 +1,5 @@
 //! Page-scoped row identities and bounded, read-only cell inspection.
-use crate::{connection, page_options, schema};
+use crate::{connection, history, page_options, schema};
 use mysql_async::{prelude::Queryable, Params, Row, Value};
 use std::{
     collections::HashMap,
@@ -161,18 +161,38 @@ pub fn read(id: u64, row: u32, column: u32) -> Result<Vec<u8>, String> {
     let pool = connection::workload_pool(handle)?;
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-        if schema::columns(&mut conn, &database, &table).await? != columns {
+        if schema::columns(&mut conn, handle, &database, &table).await? != columns {
             return Err(
                 "The table schema changed. Refresh the data page before inspecting a value.".into(),
             );
         }
-        conn.query_drop("START TRANSACTION READ ONLY")
-            .await
-            .map_err(|e| e.to_string())?;
-        let result: Result<Vec<Row>, _> = conn.exec(sql, Params::Positional(parameters)).await;
-        let rollback = conn.query_drop("ROLLBACK").await;
-        let mut rows = result.map_err(|e| e.to_string())?;
-        rollback.map_err(|e| e.to_string())?;
+        let context = format!("{database}.{table}");
+        history::query(
+            handle,
+            "Begin read",
+            &context,
+            "START TRANSACTION READ ONLY",
+            conn.query_drop("START TRANSACTION READ ONLY"),
+        )
+        .await?;
+        let result: Result<Vec<Row>, _> = history::query(
+            handle,
+            "Cell value",
+            &context,
+            &sql,
+            conn.exec(&sql, Params::Positional(parameters)),
+        )
+        .await;
+        let rollback = history::query(
+            handle,
+            "End read",
+            &context,
+            "ROLLBACK",
+            conn.query_drop("ROLLBACK"),
+        )
+        .await;
+        let mut rows = result?;
+        rollback?;
         if rows.len() != 1 {
             return Err(
                 "The record was removed or its identity changed. Refresh the data page.".into(),

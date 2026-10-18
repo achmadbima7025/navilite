@@ -199,6 +199,13 @@
                         <Button Content="Refresh data" Command="{Binding ReloadPageCommand}" />
                         <Button Content="← Previous" Command="{Binding PreviousPageCommand}" />
                         <Button Content="Next →" Command="{Binding NextPageCommand}" Margin="0" />
+                        <Menu Background="Transparent" IsEnabled="{Binding CanQuery}" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <MenuItem Header="Copy rows as…" Padding="10,8">
+                                <MenuItem Header="CSV (with headers)" Tag="Csv" Click="CopyRows_Click" />
+                                <MenuItem Header="TSV (with headers)" Tag="Tsv" Click="CopyRows_Click" />
+                                <MenuItem Header="JSON array" Tag="Json" Click="CopyRows_Click" />
+                            </MenuItem>
+                        </Menu>
                     </WrapPanel>
                     <Border Grid.Row="2" Style="{StaticResource Card}" Padding="12" Margin="0,0,0,12">
                         <StackPanel>
@@ -240,7 +247,7 @@
                                           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                           ScrollViewer.CanContentScroll="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="29"
                                           Background="White" BorderThickness="0" HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD"
-                                          SelectedItem="{Binding SelectedRecord, Mode=TwoWay}" SelectionUnit="FullRow" SelectionMode="Single" ClipboardCopyMode="IncludeHeader" AutomationProperties.Name="Read-only table data preview" />
+                                          SelectedItem="{Binding SelectedRecord, Mode=TwoWay}" SelectionUnit="FullRow" SelectionMode="Extended" ClipboardCopyMode="IncludeHeader" AutomationProperties.Name="Read-only table data preview" />
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Form · read only" ToolTip="Switch grid / form with Ctrl+G">
@@ -292,6 +299,33 @@
                                      AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="8" BorderThickness="0" />
                         </TabItem>
                     </TabControl>
+                </Grid>
+              </TabItem>
+              <TabItem Header="SQL history">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="2*" /><RowDefinition Height="8" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Session SQL history" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}" />
+                            <Button Content="Clear" Command="{Binding ClearHistoryCommand}" Margin="0" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Text="{Binding HistoryStatus}" Foreground="#75849A" TextWrapping="Wrap" Margin="0,0,0,12" />
+                    <DataGrid Grid.Row="2" ItemsSource="{Binding SqlHistory}" SelectedItem="{Binding SelectedHistory, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single" SelectionUnit="FullRow" EnableRowVirtualization="True" BorderBrush="#E0E6F0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Started" Binding="{Binding Time}" SortMemberPath="StartedUnixMs" Width="105" />
+                            <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" SortMemberPath="DurationMs" Width="90" />
+                            <DataGridTextColumn Header="Result" Binding="{Binding Status}" Width="95" />
+                            <DataGridTextColumn Header="Operation" Binding="{Binding Operation}" Width="130" />
+                            <DataGridTextColumn Header="Context" Binding="{Binding Context}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" Background="#DCE3EF" />
+                    <TextBox Grid.Row="4" Text="{Binding HistoryStatement, Mode=OneWay}" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                             AcceptsReturn="True" TextWrapping="NoWrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
                 </Grid>
               </TabItem>
             </TabControl>

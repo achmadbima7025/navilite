@@ -1,7 +1,7 @@
 //! NVLR v1: a bounded little-endian frame; see README for the wire layout.
 use crate::{
     cell_value::{self, PageContext},
-    connection,
+    connection, history,
     page_options::PageOptions,
     schema,
 };
@@ -138,7 +138,7 @@ fn read_internal(
     let pool = connection::workload_pool(handle)?;
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-        let columns = schema::columns(&mut conn, database, table).await?;
+        let columns = schema::columns(&mut conn, handle, database, table).await?;
         let mut keys: Vec<_> = columns
             .iter()
             .filter(|column| capture_keys && column.primary_key)
@@ -183,13 +183,33 @@ fn read_internal(
             "SELECT {projection} FROM {qualified}{clauses} LIMIT {offset}, {}",
             limit + 1
         );
-        conn.query_drop("START TRANSACTION READ ONLY")
-            .await
-            .map_err(|e| e.to_string())?;
-        let rows: Result<Vec<Row>, _> = conn.exec(sql, Params::Positional(parameters)).await;
-        let rollback = conn.query_drop("ROLLBACK").await;
-        let mut rows = rows.map_err(|e| e.to_string())?;
-        rollback.map_err(|e| e.to_string())?;
+        let context = format!("{database}.{table}");
+        history::query(
+            handle,
+            "Begin read",
+            &context,
+            "START TRANSACTION READ ONLY",
+            conn.query_drop("START TRANSACTION READ ONLY"),
+        )
+        .await?;
+        let rows: Result<Vec<Row>, _> = history::query(
+            handle,
+            "Data page",
+            &context,
+            &sql,
+            conn.exec(&sql, Params::Positional(parameters)),
+        )
+        .await;
+        let rollback = history::query(
+            handle,
+            "End read",
+            &context,
+            "ROLLBACK",
+            conn.query_drop("ROLLBACK"),
+        )
+        .await;
+        let mut rows = rows?;
+        rollback?;
         let has_more = rows.len() > limit;
         rows.truncate(limit);
         let next = offset

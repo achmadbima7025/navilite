@@ -1,7 +1,7 @@
 //! Every returned UTF-8 JSON allocation belongs to Rust and must be freed exactly once.
 
 use crate::{
-    cell_value, connection,
+    cell_value, connection, history,
     page_options::PageOptions,
     profiles::{self, ConnectionProfile},
     schema, table_page,
@@ -161,6 +161,21 @@ pub extern "C" fn navilite_conn_close(handle: u64) -> FfiResult {
 #[no_mangle]
 pub extern "C" fn navilite_databases_list(handle: u64) -> FfiResult {
     boundary(|| serde_json::to_value(connection::databases(handle)?).map_err(|e| e.to_string()))
+}
+
+/// Lists up to 200 internal SQL templates for this session. Bound values are excluded.
+#[no_mangle]
+pub extern "C" fn navilite_history_list(handle: u64) -> FfiResult {
+    boundary(|| serde_json::to_value(history::list(handle)?).map_err(|error| error.to_string()))
+}
+
+/// Clears the in-memory SQL history without executing SQL or modifying the server.
+#[no_mangle]
+pub extern "C" fn navilite_history_clear(handle: u64) -> FfiResult {
+    boundary(|| {
+        history::clear(handle)?;
+        Ok(Value::Null)
+    })
 }
 
 /// Lists one metadata category without loading other branches.

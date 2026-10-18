@@ -41,7 +41,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         PreviousRecordCommand = new(() => SelectRecordAsync(-1), () => CanQuery && SelectedRecord is { Index: > 0 });
         NextRecordCommand = new(() => SelectRecordAsync(1), () => CanQuery && SelectedRecord is not null && SelectedRecord.Index + 1 < Page!.Rows.Count);
         ToggleFormCommand = new(() => { DataViewIndex = DataViewIndex == 1 ? 0 : 1; SelectedWorkspaceTab = 1; return Task.CompletedTask; }, () => CanQuery);
-        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand];
+        RefreshHistoryCommand = new(() => RunAsync(() => Task.CompletedTask), () => CanBrowse);
+        ClearHistoryCommand = new(() => RunAsync(ClearHistoryAsync), () => CanBrowse);
+        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand];
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -180,6 +182,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Status = $"Connecting to {profile.Name}...";
         var info = await _core.OpenConnectionAsync(profile, _password);
         _handle = info.Handle;
+        ResetHistory();
         ClearPassword();
         ServerSummary = $"{info.ServerVersion} · session {info.ConnectionId} · {(info.Tls ? "TLS verified" : "TCP")} · {info.LatencyMs} ms";
         ActiveConnection = $"{profile.Name} / {profile.Endpoint}";
@@ -224,7 +227,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         catch (DllNotFoundException) { Report("Native core is missing. Run scripts/Build.ps1 before starting NaviLite."); }
         catch (BadImageFormatException) { Report("Native core architecture differs from the app. Build both components for Windows x64."); }
         catch (Exception error) { Report(error.Message); }
-        finally { _isBusy = false; NotifyConnection(); }
+        finally { await LoadHistoryAsync(); _isBusy = false; NotifyConnection(); }
     }
 
     private void Report(string message) { Status = message; Log($"Error: {message}"); }

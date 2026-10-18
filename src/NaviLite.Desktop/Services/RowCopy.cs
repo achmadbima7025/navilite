@@ -5,15 +5,17 @@ using NaviLite.Desktop.Models;
 
 namespace NaviLite.Desktop.Services;
 
-public enum RowCopyFormat { Csv, Tsv, Json }
+public enum RowCopyFormat { Csv, Tsv, Json, SqlInsert }
 
 public static class RowCopy
 {
     public static string Format(NativePage page, IReadOnlyList<NativeRow> rows, RowCopyFormat format)
     {
+        if (format is not (RowCopyFormat.Csv or RowCopyFormat.Tsv or RowCopyFormat.Json))
+            throw new ArgumentException("SQL row copying must use the native SQL formatter.", nameof(format));
         if (rows.Count == 0 || rows.Any(row => !row.BelongsTo(page)))
             throw new InvalidOperationException("Select records in the current data page.");
-        using var buffer = new CopyBuffer();
+        using var buffer = new LimitedMemoryStream(8 * 1024 * 1024, "Clipboard output is limited to 8 MiB. Select fewer records.");
         if (format == RowCopyFormat.Json)
         {
             using var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true });
@@ -76,16 +78,4 @@ public static class RowCopy
         writer.Write('"');
     }
 
-    private sealed class CopyBuffer : MemoryStream
-    {
-        private const int MaximumBytes = 8 * 1024 * 1024;
-        private void Check(int count)
-        {
-            if (Length + count > MaximumBytes)
-                throw new InvalidOperationException("Clipboard output is limited to 8 MiB. Select fewer records.");
-        }
-        public override void Write(byte[] buffer, int offset, int count) { Check(count); base.Write(buffer, offset, count); }
-        public override void Write(ReadOnlySpan<byte> buffer) { Check(buffer.Length); base.Write(buffer); }
-        public override void WriteByte(byte value) { Check(1); base.WriteByte(value); }
-    }
 }

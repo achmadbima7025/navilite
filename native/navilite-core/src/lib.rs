@@ -7,5 +7,6 @@ mod history;
 mod page_options;
 mod profile_transfer;
 mod profiles;
+mod row_insert;
 mod schema;
 mod table_page;

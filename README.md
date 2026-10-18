@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.8.0
+## Status aplikasi: 0.9.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -132,7 +132,15 @@ Contoh format berkas koneksi tanpa kredensial:
 }
 ```
 
-SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.9.0 menambahkan salinan SQL INSERT:
+
+- Pada tabel, pilih baris grid atau record aktif di Form View lalu Copy rows as → SQL INSERT. Rust membuat satu statement dengan daftar kolom eksplisit dan baris menurut urutan halaman. Tujuannya memakai nama database/tabel sumber, dengan identifier ber-backtick. Nilai auto-increment dan primary key tetap disertakan; kolom generated dikecualikan berdasarkan metadata yang ditangkap saat halaman dibaca.
+- Angka integer/desimal disalin sebagai token numerik tanpa konversi floating point; FLOAT/DOUBLE memakai teks nilai dari halaman dan diperiksa agar valid serta finite. Teks, JSON, ENUM/SET, dan nilai temporal memakai `CONVERT(X'HEX' USING utf8mb4)`, sedangkan BINARY/BLOB memakai `X'HEX'`. NULL menjadi `NULL`; string dan biner kosong tetap berbeda dari NULL. Kutip, backslash, baris baru, Unicode, dan NUL dalam teks tidak menjadi sintaks SQL tambahan.
+- Semua nilai non-generated yang dipilih harus lengkap dalam frame. Nilai terpotong, halaman kedaluwarsa, baris tidak valid, tipe belum didukung, atau output terlalu besar menolak seluruh penyalinan sebelum clipboard berubah. Sel generated tidak dimasukkan, termasuk jika cuplikannya terpotong. Input JSON dan hasil SQL masing-masing dibatasi 8 MiB. Tidak ada pembacaan ulang data atau eksekusi SQL saat menyalin, dan isi SQL hasil salinan tidak dicatat di history/activity log.
+- Inkrement ini mendukung base table dengan tipe angka umum, teks, JSON, ENUM/SET, tanggal/waktu, dan biner/BLOB. View, BIT, tipe spasial/vector atau tipe lain yang belum didukung, serta tabel dengan semua kolom generated ditolak. Saat membaca halaman, satu query metadata jenis objek ditambahkan dan query kolom juga membaca penanda generated; nilai data tetap memakai frame NVLR v1. Pembacaan halaman memerlukan metadata `information_schema.COLUMNS.GENERATION_EXPRESSION`; server lama yang belum menyediakan kolom tersebut belum didukung.
+- SQL merupakan snapshot nilai yang ditampilkan, bukan backup atau migrasi. Tinjau tujuan, konflik key/auto-increment, kolom/constraint target, SQL mode, time zone untuk TIMESTAMP, serta batas paket sebelum menjalankannya di alat lain. Aplikasi hanya menyalin statement dan tidak mengubah database. Perubahan skema/data server setelah halaman dibuka tidak divalidasi ulang saat menyalin.
+
+SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -163,6 +171,7 @@ Struktur kode:
 | `native/navilite-core/src/page_options.rs` | Validasi filter/sort, parameter bertipe, dan urutan primary key |
 | `native/navilite-core/src/cell_value.rs` | Identitas record selama halaman hidup, pembacaan nilai terbatas, dan frame NVLC |
 | `native/navilite-core/src/history.rs` | Riwayat template SQL terbatas per sesi dan pencatatan durasi/hasil/interupsi |
+| `native/navilite-core/src/row_insert.rs` | Pembuatan SQL INSERT terbatas dari metadata halaman dan nilai pilihan, tanpa eksekusi |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
 | `src/NaviLite.Desktop/CellInspectorWindow.xaml` | Viewer teks/JSON/hex baca saja dan penyimpanan byte yang dimuat |
 | `src/NaviLite.Desktop/Services/RowCopy.cs` | Pemformatan CSV/TSV/JSON dari frame dengan batas output clipboard |
@@ -197,6 +206,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_table_page_open` | Input halaman/query; `FfiPage { buffer: FfiBuffer, page_id: u64 }` dengan identitas primary key yang ditahan Rust |
 | `navilite_cell_read` | Page ID, indeks baris/kolom halaman (u32); `FfiBuffer` NVLC berisi nilai saat ini berdasarkan primary key |
 | `navilite_page_release` | Page ID; melepas identitas, idempotent, tidak membebaskan buffer NVLR |
+| `navilite_rows_insert_sql` | Page ID dan array JSON `{index,cells:[{value,truncated}]}`; string INSERT, hanya format, tanpa SQL ke server |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
@@ -241,10 +251,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.8.0
+./scripts/Set-Version.ps1 -Version 0.9.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.8.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.9.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

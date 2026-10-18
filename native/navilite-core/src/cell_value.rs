@@ -20,6 +20,7 @@ pub(crate) struct PageContext {
     pub database: String,
     pub table: String,
     pub columns: Vec<schema::Column>,
+    pub is_base_table: bool,
     pub keys: Vec<Option<Vec<Value>>>,
 }
 
@@ -82,6 +83,15 @@ pub fn release(id: u64) {
     if let Ok(mut pages) = pages().lock() {
         pages.remove(&id);
     }
+}
+
+pub(crate) fn copy_context(id: u64) -> Result<PageContext, String> {
+    pages()
+        .lock()
+        .map_err(|_| "Page registry is unavailable.")?
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| "This data page has expired. Refresh it before copying SQL.".into())
 }
 
 pub(crate) fn release_session(handle: u64) {

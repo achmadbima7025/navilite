@@ -5,7 +5,7 @@ use crate::{
     page_options::PageOptions,
     profile_transfer,
     profiles::{self, ConnectionProfile},
-    schema, table_page,
+    row_insert, schema, table_page,
 };
 use serde_json::{json, Value};
 use std::{
@@ -339,6 +339,14 @@ pub unsafe extern "C" fn navilite_table_page_open(
 #[no_mangle]
 pub extern "C" fn navilite_page_release(page_id: u64) {
     cell_value::release(page_id);
+}
+
+/// Formats selected page values as one bounded INSERT statement; never executes SQL.
+/// # Safety
+/// Rows must be a valid NUL-terminated UTF-8 JSON array for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_rows_insert_sql(page_id: u64, rows: *const c_char) -> FfiResult {
+    boundary(|| Ok(json!(row_insert::copy(page_id, text(rows)?)?)))
 }
 
 /// Reads the current cell by the retained row primary key, capped at 1 MiB, as NVLC v1.

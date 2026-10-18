@@ -157,6 +157,17 @@ public sealed unsafe class NativePage : SafeHandle
         finally { if (added) DangerousRelease(); }
     }
 
+    internal T WithPageLease<T>(Func<ulong, T> operation)
+    {
+        bool added = false;
+        try
+        {
+            DangerousAddRef(ref added);
+            return operation(_pageId);
+        }
+        finally { if (added) DangerousRelease(); }
+    }
+
     protected override bool ReleaseHandle()
     {
         NativeMethods.navilite_page_release(_pageId);

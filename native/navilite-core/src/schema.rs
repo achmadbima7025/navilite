@@ -32,6 +32,7 @@ pub struct Column {
     pub sql_type: String,
     pub binary: bool,
     pub primary_key: bool,
+    pub generated: bool,
 }
 
 pub fn identifier(value: &str) -> Result<String, String> {
@@ -94,8 +95,8 @@ pub async fn columns(
     database: &str,
     table: &str,
 ) -> Result<Vec<Column>, String> {
-    let sql = "SELECT COLUMN_NAME, COLUMN_TYPE, DATA_TYPE, COLUMN_KEY FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION";
-    let rows: Vec<(String, String, String, String)> = history::query(
+    let sql = "SELECT COLUMN_NAME, COLUMN_TYPE, DATA_TYPE, COLUMN_KEY, COALESCE(GENERATION_EXPRESSION, '') <> '' FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION";
+    let rows: Vec<(String, String, String, String, u8)> = history::query(
         handle,
         "Column metadata",
         &format!("{database}.{table}"),
@@ -110,7 +111,7 @@ pub async fn columns(
         return Err("Data preview supports up to 1024 columns per object.".into());
     }
     rows.into_iter()
-        .map(|(name, sql_type, data_type, key)| {
+        .map(|(name, sql_type, data_type, key, generated)| {
             identifier(&name)?;
             let binary = matches!(
                 data_type.to_ascii_lowercase().as_str(),
@@ -136,9 +137,28 @@ pub async fn columns(
                 sql_type,
                 binary,
                 primary_key: key == "PRI",
+                generated: generated != 0,
             })
         })
         .collect()
+}
+
+pub async fn is_base_table(
+    conn: &mut Conn,
+    handle: u64,
+    database: &str,
+    table: &str,
+) -> Result<bool, String> {
+    let sql = "SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+    let kind: Option<String> = history::query(
+        handle,
+        "Object type",
+        &format!("{database}.{table}"),
+        sql,
+        conn.exec_first(sql, (database, table)),
+    )
+    .await?;
+    Ok(kind.as_deref() == Some("BASE TABLE"))
 }
 
 pub fn ddl(handle: u64, database: &str, table: &str) -> Result<String, String> {

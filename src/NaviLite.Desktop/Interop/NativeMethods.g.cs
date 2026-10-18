@@ -152,6 +152,14 @@ namespace NaviLite.Desktop.Interop
         internal static extern void navilite_page_release(ulong page_id);
 
         /// <summary>
+        ///  Formats selected page values as one bounded INSERT statement; never executes SQL.
+        ///  # Safety
+        ///  Rows must be a valid NUL-terminated UTF-8 JSON array for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_rows_insert_sql", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_rows_insert_sql(ulong page_id, byte* rows);
+
+        /// <summary>
         ///  Reads the current cell by the retained row primary key, capped at 1 MiB, as NVLC v1.
         ///  The returned allocation must be released with navilite_buffer_free.
         /// </summary>

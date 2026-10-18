@@ -588,7 +588,7 @@ dependencies = [
 
 [[package]]
 name = "navilite-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "csbindgen",
  "keyring",

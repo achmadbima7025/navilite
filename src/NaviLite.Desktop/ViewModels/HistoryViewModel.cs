@@ -61,10 +61,15 @@ public sealed partial class MainViewModel
         if (rows.Length == 0) { Status = "Select records to copy."; return Task.CompletedTask; }
         return RunAsync(async () =>
         {
-            Status = $"Preparing {rows.Length} records as {format.ToString().ToUpperInvariant()}...";
-            string text = await Task.Run(() => RowCopy.Format(page, rows, format));
+            string label = format == RowCopyFormat.SqlInsert ? "SQL INSERT" : format.ToString().ToUpperInvariant();
+            Status = $"Preparing {rows.Length} records as {label}...";
+            string text = format == RowCopyFormat.SqlInsert
+                ? await _core.CopyRowsAsInsertAsync(page, rows)
+                : await Task.Run(() => RowCopy.Format(page, rows, format));
             RowsCopyRequested?.Invoke(text);
-            Status = $"Copied {rows.Length} records as {format.ToString().ToUpperInvariant()}.";
+            Status = format == RowCopyFormat.SqlInsert
+                ? $"Copied {rows.Length} records as SQL INSERT. Review the target, keys, constraints, and session settings before running it."
+                : $"Copied {rows.Length} records as {label}.";
             Log(Status);
         });
     }

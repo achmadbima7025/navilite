@@ -210,6 +210,8 @@
                                 <MenuItem Header="CSV (with headers)" Tag="Csv" Click="CopyRows_Click" />
                                 <MenuItem Header="TSV (with headers)" Tag="Tsv" Click="CopyRows_Click" />
                                 <MenuItem Header="JSON array" Tag="Json" Click="CopyRows_Click" />
+                                <Separator />
+                                <MenuItem Header="SQL INSERT (selected rows)" Tag="SqlInsert" Click="CopyRows_Click" ToolTip="Base tables only. Copies complete values; generated columns are omitted." />
                             </MenuItem>
                         </Menu>
                     </WrapPanel>

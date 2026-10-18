@@ -139,6 +139,8 @@ fn read_internal(
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
         let columns = schema::columns(&mut conn, handle, database, table).await?;
+        let is_base_table =
+            capture_keys && schema::is_base_table(&mut conn, handle, database, table).await?;
         let mut keys: Vec<_> = columns
             .iter()
             .filter(|column| capture_keys && column.primary_key)
@@ -281,6 +283,7 @@ fn read_internal(
             database: database.into(),
             table: table.into(),
             columns,
+            is_base_table,
             keys: identities,
         });
         Ok((frame, context))

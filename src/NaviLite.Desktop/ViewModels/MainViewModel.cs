@@ -43,7 +43,10 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         ToggleFormCommand = new(() => { DataViewIndex = DataViewIndex == 1 ? 0 : 1; SelectedWorkspaceTab = 1; return Task.CompletedTask; }, () => CanQuery);
         RefreshHistoryCommand = new(() => RunAsync(() => Task.CompletedTask), () => CanBrowse);
         ClearHistoryCommand = new(() => RunAsync(ClearHistoryAsync), () => CanBrowse);
-        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand];
+        AddFilterCommand = new(AddFilterAsync, () => CanQuery && DraftFilters.Count < 16);
+        AddSortCommand = new(AddSortAsync, () => CanQuery && DraftSorts.Count < 8);
+        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand];
+        ResetQueryState();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -244,7 +247,6 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Changed(nameof(CanEdit));
         Changed(nameof(CanBrowse));
         Changed(nameof(CanQuery));
-        Changed(nameof(FilterValueEnabled));
         RefreshCommands();
     }
 

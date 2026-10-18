@@ -4,6 +4,20 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-18
+
+### Added
+
+- Up to 16 structured filter conditions combined with all/AND or any/OR, using grouped predicates and typed bound parameters.
+- Up to eight unique explicit sort columns, editable priority with move controls, and primary-key tie-break ordering without duplicate columns.
+- Dynamic filter/sort draft rows, ignored None rows, semantic pending-change detection, and applied query preservation across pagination and failures.
+- Applied sort priorities in grid headers; header clicks replace explicit ordering with a single-column ASC/DESC/default cycle while retaining active filters.
+- Additive `filters`, `sorts`, and `matchMode` JSON options with limits and validation, retaining legacy singular `filter`/`sort` input and existing ABI/frame formats.
+
+### Scope
+
+- Filters form one flat AND/OR group. Nested groups, raw SQL expressions, editing, user SQL execution, SQL row-copy formats, SSH, and transfers remain pending.
+
 ## [0.5.0] - 2026-10-18
 
 ### Added

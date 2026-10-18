@@ -1,12 +1,27 @@
 use crate::schema::{self, Column};
 use mysql_async::Value;
 use serde::Deserialize;
+use std::collections::HashSet;
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PageOptions {
     pub filter: Option<Filter>,
     pub sort: Option<Sort>,
+    #[serde(default)]
+    pub filters: Vec<Filter>,
+    #[serde(default)]
+    pub sorts: Vec<Sort>,
+    #[serde(default)]
+    match_mode: MatchMode,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum MatchMode {
+    #[default]
+    All,
+    Any,
 }
 
 #[derive(Deserialize)]
@@ -117,9 +132,19 @@ pub(crate) fn comparison_parameter(
 
 impl PageOptions {
     pub fn clauses(&self, columns: &[Column]) -> Result<(String, Vec<Value>, bool), String> {
+        if self.filters.len() > 16 || self.sorts.len() > 8 {
+            return Err("A data query supports up to 16 filters and 8 sort columns.".into());
+        }
+        if (self.filter.is_some() && !self.filters.is_empty())
+            || (self.sort.is_some() && !self.sorts.is_empty())
+        {
+            return Err("Do not supply filter together with nonempty filters, or sort together with nonempty sorts.".into());
+        }
         let mut sql = String::new();
         let mut values = Vec::new();
-        if let Some(filter) = &self.filter {
+        let filters: Vec<_> = self.filter.iter().chain(&self.filters).collect();
+        let mut predicates = Vec::with_capacity(filters.len());
+        for filter in filters {
             let metadata = column(columns, &filter.column)?;
             let name = schema::identifier(&metadata.name)?;
             let null_filter = matches!(filter.operator, Operator::IsNull | Operator::IsNotNull);
@@ -161,10 +186,24 @@ impl PageOptions {
                 };
                 values.push(value);
             }
-            sql.push_str(&format!(" WHERE {name} {operator}"));
+            predicates.push(format!("({name} {operator})"));
+        }
+        if !predicates.is_empty() {
+            let separator = match self.match_mode {
+                MatchMode::All => " AND ",
+                MatchMode::Any => " OR ",
+            };
+            sql.push_str(&format!(" WHERE {}", predicates.join(separator)));
         }
         let mut ordering = Vec::new();
-        if let Some(sort) = &self.sort {
+        let mut sorted = HashSet::new();
+        for sort in self.sort.iter().chain(&self.sorts) {
+            if !sorted.insert(sort.column.as_str()) {
+                return Err(
+                    "Choose each sort column only once. Remove the duplicate sort condition."
+                        .into(),
+                );
+            }
             let name = schema::identifier(&column(columns, &sort.column)?.name)?;
             let direction = match sort.direction {
                 Direction::Asc => "ASC",
@@ -174,11 +213,7 @@ impl PageOptions {
         }
         let keys: Vec<_> = columns.iter().filter(|column| column.primary_key).collect();
         for key in &keys {
-            if !self
-                .sort
-                .as_ref()
-                .is_some_and(|sort| sort.column == key.name)
-            {
+            if !sorted.contains(key.name.as_str()) {
                 ordering.push(format!("{} ASC", schema::identifier(&key.name)?));
             }
         }

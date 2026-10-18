@@ -51,14 +51,16 @@ public partial class MainWindow : Window
         for (int index = 0; index < page.Columns.Count; index++)
         {
             var column = page.Columns[index];
-            var header = new TextBlock { Text = column.Name, ToolTip = column.SqlType };
+            int priority = _viewModel.SortPriority(column.Name);
+            var sort = _viewModel.AppliedSort(column.Name);
+            var header = new TextBlock { Text = priority > 0 ? $"{column.Name} · #{priority}" : column.Name, ToolTip = column.SqlType };
             PreviewGrid.Columns.Add(new DataGridTextColumn
             {
                 Header = header,
                 Binding = new Binding($"[{index}]") { Mode = BindingMode.OneWay },
                 SortMemberPath = column.Name,
-                SortDirection = _viewModel.AppliedSortColumn == column.Name
-                    ? _viewModel.AppliedSortDirection == "desc" ? ListSortDirection.Descending : ListSortDirection.Ascending
+                SortDirection = sort is not null
+                    ? sort.Direction == "desc" ? ListSortDirection.Descending : ListSortDirection.Ascending
                     : null,
                 Width = new DataGridLength(150),
                 MinWidth = 70,
@@ -71,6 +73,19 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         await _viewModel.SortByAsync(e.Column.SortMemberPath);
+    }
+
+    private void RemoveQueryRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement control) return;
+        if (control.DataContext is FilterDraft filter) _viewModel.RemoveFilter(filter);
+        else if (control.DataContext is SortDraft sort) _viewModel.RemoveSort(sort);
+    }
+
+    private void MoveSort_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: SortDraft sort, Tag: string value } && int.TryParse(value, out int delta))
+            _viewModel.MoveSort(sort, delta);
     }
 
     private async void PreviewGrid_KeyDown(object sender, KeyEventArgs e)

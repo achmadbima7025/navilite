@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.5.0
+## Status aplikasi: 0.6.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -96,7 +96,15 @@ Inkrement 0.5.0 menambahkan salin baris dan riwayat SQL sesi:
 - Riwayat dibatasi 200 statement per koneksi dan 16 KiB UTF-8 per template SQL, dengan penanda ketika teks dipotong. Nilai parameter, hasil query, pesan error server, password, dan handshake autentikasi tidak dicatat dalam riwayat SQL. Query internal driver untuk setup/reset pool juga tidak ditampilkan. Riwayat hanya berada di memori; Refresh/Clear tidak menjalankan SQL atau mengubah server.
 - Panel riwayat diperbarui setelah operasi selesai. Salinan UI terakhir tetap terlihat setelah disconnect dan diganti saat membuka koneksi berikutnya; registry native dilepas bersama sesi. Clear tersedia selama koneksi aktif.
 
-SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, beberapa kondisi filter/sort, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.6.0 menambahkan filter gabungan dan urutan beberapa kolom:
+
+- Gunakan + Filter untuk menambah hingga 16 baris kondisi. Match all conditions menggabungkannya dengan AND; Match any condition memakai OR. Semua kondisi berada dalam satu kelompok, dengan delapan operator yang sudah tersedia. Kolom yang sama dapat dipakai dalam beberapa kondisi, misalnya batas bawah dan atas suatu nilai.
+- Gunakan + Sort untuk menambah hingga 8 kolom pengurutan ASC/DESC. Tombol panah mengubah prioritas; kolom teratas didahulukan. Kolom sort yang sama tidak boleh dipilih dua kali. Primary key yang belum tercakup tetap ditambahkan untuk membedakan urutan record.
+- Tombol × menghapus baris kondisi/sort. Baris dengan kolom None diabaikan; nomor prioritas hanya menghitung kolom yang dipilih. Apply menerapkan draft dan kembali ke halaman pertama. Previous/Next/Refresh memakai query yang sudah diterapkan, dan kegagalan penerapan tetap mempertahankan hasil serta query aktif sebelumnya.
+- Header grid menunjukkan arah dan nomor prioritas sort yang aktif. Klik header menerapkan satu kolom sort, mengganti daftar sort eksplisit sebelumnya, dengan siklus ASC → DESC → default; filter aktif tetap dipakai dan draft filter yang belum diterapkan tetap ditandai. Gunakan kontrol Order by untuk urutan beberapa kolom.
+- Native tetap memakai placeholder untuk seluruh nilai filter, memeriksa metadata kolom terbaru, serta mempertahankan perbandingan angka presisi tinggi, kondisi NULL, dan pencarian teks literal. Riwayat SQL tidak menyimpan nilai parameter. Bentuk JSON tunggal `filter`/`sort` tetap diterima.
+
+SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -162,6 +170,14 @@ Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil 
 
 `navilite_table_page_query` menerima opsi seperti `{"filter":{"column":"name","operator":"contains","value":"sample"},"sort":{"column":"id","direction":"desc"}}`. `filter` dan `sort` opsional/null; `{}` memakai urutan default. Operator memakai camelCase (`equals`, `notEquals`, `contains`, `startsWith`, `greaterThan`, `lessThan`, `isNull`, `isNotNull`); arah hanya `asc`/`desc`. Nama kolom wajib cocok dengan metadata terbaru, field yang tidak dikenal ditolak, dan nilai dikirim sebagai parameter. API halaman lama tetap tersedia tanpa filter/sort. ABI produk dan format frame tetap 1.
 
+Mulai 0.6.0, `navilite_table_page_query` dan `navilite_table_page_open` juga menerima bentuk daftar:
+
+```json
+{"filters":[{"column":"status","operator":"equals","value":"active"},{"column":"score","operator":"greaterThan","value":"50"}],"matchMode":"all","sorts":[{"column":"created_at","direction":"desc"},{"column":"id","direction":"asc"}]}
+```
+
+`filters`/`sorts` berupa array yang boleh kosong atau dihilangkan, maksimal 16 kondisi dan 8 kolom sort unik. `matchMode` hanya `all` atau `any`, default `all`. Jangan mengirim `filter` bersama `filters` yang tidak kosong, atau `sort` bersama `sorts` yang tidak kosong. Kondisi diberi tanda kurung dan nilai parameter mengikuti urutan kondisi; seluruh filter dan sort diterapkan sebelum LIMIT/pagination. Bentuk lama tetap memiliki perilaku yang setara. ABI, NVLR v1, dan NVLC v1 tidak berubah.
+
 ### Frame NVLR v1
 
 `FfiBuffer { code: i32, data: *mut u8, length: usize }` memiliki kontrak berbeda dari CString: payload sukses adalah biner dan payload gagal (`code = -1`) adalah JSON UTF-8 sepanjang `length`, tanpa terminator NUL. Keduanya wajib dibebaskan dengan `navilite_buffer_free(data, length)`, bukan `navilite_result_free`. Pointer input dipakai hanya selama pemanggilan. ABI produk tetap 1; format frame memiliki versi terpisah.
@@ -192,10 +208,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.5.0
+./scripts/Set-Version.ps1 -Version 0.6.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.5.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.6.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

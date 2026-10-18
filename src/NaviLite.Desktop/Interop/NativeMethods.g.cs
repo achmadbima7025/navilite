@@ -25,6 +25,28 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiResult navilite_profiles_list();
 
         /// <summary>
+        ///  Exports a versioned metadata-only document. Never accesses the credential store.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_profiles_export", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_profiles_export();
+
+        /// <summary>
+        ///  Validates an import and previews duplicates/names without updating profiles or credentials.
+        ///  # Safety
+        ///  Document must be a valid NUL-terminated UTF-8 string for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_profiles_import_preview", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_profiles_import_preview(byte* document);
+
+        /// <summary>
+        ///  Atomically adds selected new profiles with new IDs and no saved passwords.
+        ///  # Safety
+        ///  Document and selection (JSON array of zero-based indices) must be valid NUL-terminated UTF-8 strings.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_profiles_import", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_profiles_import(byte* document, byte* selection);
+
+        /// <summary>
         ///  Saves metadata and optionally a Windows credential. A null password preserves the saved password.
         ///  # Safety
         ///  Arguments must be valid NUL-terminated UTF-8 strings for the duration of this call; password may be null.

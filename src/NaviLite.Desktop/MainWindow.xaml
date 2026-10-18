@@ -58,6 +58,8 @@
                     <TextBlock Text="MYSQL / MARIADB" Foreground="#8090A7" FontSize="11" Margin="18,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Import connections…" Click="ImportConnections_Click" IsEnabled="{Binding CanEdit}" ToolTip="Preview and add connection metadata from a NaviLite file" />
+                    <Button Content="Export connections…" Click="ExportConnections_Click" IsEnabled="{Binding CanExportConnections}" ToolTip="Export all saved profiles as metadata without passwords" />
                     <Button Content="New connection" Command="{Binding NewCommand}" />
                     <TextBlock Text="{Binding AppVersion, StringFormat=v{0}}" Foreground="#7D8BA1" Margin="12,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>

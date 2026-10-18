@@ -253,6 +253,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Changed(nameof(CanBrowse));
         Changed(nameof(CanQuery));
         Changed(nameof(CanExportDefinition));
+        Changed(nameof(CanExportConnections));
         RefreshCommands();
     }
 

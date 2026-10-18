@@ -4,6 +4,20 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-19
+
+### Added
+
+- Versioned `.nvconn.json` import/export for saved connection metadata, with a dedicated portable-field allowlist excluding profile IDs, password flags, and credentials.
+- Import preview with per-profile selection, duplicate detection across saved profiles and the file, and unique names for conflicting labels. Duplicate identity uses host/port, username, environment, TLS, and CA path; names do not affect identity.
+- Selected imports revalidated under the existing cross-process store lock and committed as one metadata update. Imported profiles have fresh UUIDs and password remembering disabled; existing profiles and credentials are preserved.
+- Bounded UTF-8 file reading, strict schema/version/field validation, sanitized import errors, and temporary-file replacement for exports. Direct export to the active connection-store files is rejected.
+- Additive native export, preview, and selected-import APIs, generated C# bindings, and WPF import/export actions available while disconnected.
+
+### Scope
+
+- Each file supports 1–1,000 connections and up to 1 MiB UTF-8. CA certificate entries contain paths only; certificate files and passwords must be supplied on the destination computer. Navicat `.ncx` conversion, SSH credentials, and profile replacement remain pending. No database connection or SQL is executed by import/export.
+
 ## [0.7.0] - 2026-10-18
 
 ### Added

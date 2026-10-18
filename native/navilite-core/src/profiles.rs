@@ -19,7 +19,7 @@ pub struct ConnectionProfile {
     pub ca_certificate: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Environment {
     Local,
@@ -245,4 +245,36 @@ pub fn delete(id: &str) -> Result<(), String> {
     profiles.retain(|p| p.id != id);
     let pending = prepare_profiles(&profiles)?;
     commit_with_password(pending, id, previous.as_ref().map(|p| p.as_str()), None)
+}
+
+pub(crate) fn import_connections(
+    connections: Vec<crate::profile_transfer::PortableConnection>,
+    selected: std::collections::HashSet<usize>,
+) -> Result<crate::profile_transfer::ImportResult, String> {
+    let _guard = STORE_LOCK
+        .lock()
+        .map_err(|_| "Profile store is unavailable.")?;
+    let _file_guard = lock_store()?;
+    let mut profiles = read_profiles()?;
+    // Re-plan under the same cross-process lock used by save/delete. A preview
+    // cannot authorize overwriting a profile added or changed in another window.
+    let mut plan = crate::profile_transfer::plan(&profiles, &connections);
+    // Reserve names across the whole preview before applying selection, so
+    // deselecting another row does not change a displayed planned name.
+    plan.additions.retain(|(index, _)| selected.contains(index));
+    let result = crate::profile_transfer::ImportResult {
+        imported: plan.additions.len(),
+        skipped: selected.len() - plan.additions.len(),
+        first_imported_id: plan
+            .additions
+            .first()
+            .map(|(_, profile)| profile.id.clone()),
+    };
+    if !plan.additions.is_empty() {
+        profiles.extend(plan.additions.into_iter().map(|(_, profile)| profile));
+        profiles.sort_by_key(|profile| profile.name.to_lowercase());
+        prepare_profiles(&profiles)?.commit()?;
+    }
+    // New IDs and remember_password=false need no keychain read or mutation.
+    Ok(result)
 }

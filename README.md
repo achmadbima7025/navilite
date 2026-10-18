@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.6.0
+## Status aplikasi: 0.8.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -112,7 +112,27 @@ Inkrement 0.7.0 menambahkan inspeksi definisi objek dan refresh cabang navigator
 - Batas tampilan gabungan SQL dan metadata adalah 4 MiB, diperiksa setelah respons server diterima. Definisi yang melampaui batas ditolak tanpa dipotong. Riwayat SQL hanya mencatat perintah SHOW CREATE beserta identifier; isi definisi tidak disimpan di riwayat atau activity log.
 - Pilih kategori Tables, Views, Procedures, Functions, Triggers, Events, Columns, Indexes, atau Foreign keys lalu Reload branch untuk mengambil ulang kategori itu. Hasil baru mengganti cabang setelah pembacaan berhasil; cabang lain dan data aktif tetap tersedia. Refresh databases tetap memuat ulang seluruh pohon database.
 
-SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.8.0 menambahkan impor/ekspor metadata koneksi:
+
+- Saat disconnected, gunakan Import connections di toolbar untuk membuka `.nvconn.json`, melihat pratinjau, lalu memilih profil yang akan ditambahkan. Impor tidak membuka koneksi database. Profil baru memakai ID baru dan Remember password nonaktif; masukkan password setelah impor dan simpan lewat Credential Manager jika diperlukan.
+- Duplikat diperiksa berdasarkan host (tanpa membedakan huruf besar/kecil ASCII), port, username, environment, TLS, dan path CA. Nama profil serta status penyimpanan password tidak menjadi identitas duplikat. Profil yang sama di penyimpanan atau lebih awal di dalam berkas ditandai dan dilewati. Jika nama sudah dipakai oleh profil berbeda, profil baru mendapat akhiran `(imported 2)`, dan seterusnya. Pilihan baris tidak mengubah nama yang direncanakan. Duplikat dan nama diperiksa ulang saat impor agar perubahan dari jendela lain tetap dihormati.
+- Seluruh profil terpilih divalidasi sebelum satu pembaruan metadata dengan lock antar-proses. Profil lama dan kredensialnya tetap tersimpan. Batal pada pratinjau tidak mengimpor profil. Tidak ada pembacaan atau perubahan Credential Manager dalam operasi impor/ekspor.
+- Export connections mengekspor seluruh profil yang sudah disimpan sebagai JSON UTF-8 tanpa BOM. Perubahan draft yang belum disimpan tidak termasuk. Berkas hanya berisi metadata yang diizinkan; ID lokal, Remember password, dan password tidak diekspor. Berkas CA tidak disalin; path yang tercatat perlu diperiksa pada komputer tujuan. Ekspor memakai berkas sementara pada folder tujuan lalu mengganti target setelah penulisan selesai. Gunakan path drive/UNC biasa; path device atau extended Windows ditolak.
+- Format berkas memakai `format: "navilite.connections"`, `formatVersion: 1`, dan daftar `connections`. Batasnya 1.000 profil dan 1 MiB UTF-8. Field tidak dikenal (termasuk credential/password/ID) ditolak, dan error validasi tidak mengutip isi input. Panjang name/username maksimal 256 karakter, host 1.024 karakter, dan path CA 4.096 karakter, tanpa karakter kontrol. Impor juga menerima UTF-8 BOM.
+
+Contoh format berkas koneksi tanpa kredensial:
+
+```json
+{
+  "format": "navilite.connections",
+  "formatVersion": 1,
+  "connections": [
+    { "name": "Development", "host": "127.0.0.1", "port": 3306, "username": "developer", "environment": "local", "useTls": false, "caCertificate": null }
+  ]
+}
+```
+
+SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -135,6 +155,7 @@ Struktur kode:
 | Lokasi | Tanggung jawab |
 | --- | --- |
 | `native/navilite-core/src/profiles.rs` | Validasi profil, metadata lokal, dan Windows Credential Manager |
+| `native/navilite-core/src/profile_transfer.rs` | Format portabel, validasi impor/ekspor, pratinjau duplikat, dan perencanaan profil baru |
 | `native/navilite-core/src/connection.rs` | Runtime Tokio, pool, koneksi TCP/TLS, dan metadata database |
 | `native/navilite-core/src/ffi.rs` | API C, respons JSON UTF-8, penahanan panic, dan pelepasan memori |
 | `native/navilite-core/src/schema.rs` | Metadata lazy-load, pengutipan identifier, dan DDL yang sudah ada |
@@ -157,6 +178,9 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | --- | --- |
 | `navilite_core_info` | Versi produk dan versi ABI (1) |
 | `navilite_profiles_list` | Daftar metadata profil, tanpa sandi |
+| `navilite_profiles_export` | String dokumen JSON metadata portabel, tanpa ID atau kredensial |
+| `navilite_profiles_import_preview` | String dokumen JSON; candidates dengan connection, duplicate, plannedName; tanpa perubahan profil |
+| `navilite_profiles_import` | Dokumen asli dan array JSON indeks pilihan berbasis nol; jumlah imported/skipped dan firstImportedId opsional |
 | `navilite_profile_save` | JSON profil + sandi opsional; mengembalikan profil |
 | `navilite_profile_delete` | ID profil; menghapus metadata dan kredensial |
 | `navilite_conn_test` | JSON profil + sandi opsional; informasi server tanpa sesi tetap |
@@ -217,10 +241,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.7.0
+./scripts/Set-Version.ps1 -Version 0.8.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.7.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.8.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

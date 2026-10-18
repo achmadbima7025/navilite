@@ -3,6 +3,7 @@
 use crate::{
     cell_value, connection, history,
     page_options::PageOptions,
+    profile_transfer,
     profiles::{self, ConnectionProfile},
     schema, table_page,
 };
@@ -95,6 +96,37 @@ pub extern "C" fn navilite_core_info() -> FfiResult {
 #[no_mangle]
 pub extern "C" fn navilite_profiles_list() -> FfiResult {
     boundary(|| serde_json::to_value(profiles::list()?).map_err(|e| e.to_string()))
+}
+
+/// Exports a versioned metadata-only document. Never accesses the credential store.
+#[no_mangle]
+pub extern "C" fn navilite_profiles_export() -> FfiResult {
+    boundary(|| Ok(json!(profile_transfer::export_document()?)))
+}
+
+/// Validates an import and previews duplicates/names without updating profiles or credentials.
+/// # Safety
+/// Document must be a valid NUL-terminated UTF-8 string for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_profiles_import_preview(document: *const c_char) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(profile_transfer::preview(text(document)?)?)
+            .map_err(|error| error.to_string())
+    })
+}
+
+/// Atomically adds selected new profiles with new IDs and no saved passwords.
+/// # Safety
+/// Document and selection (JSON array of zero-based indices) must be valid NUL-terminated UTF-8 strings.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_profiles_import(
+    document: *const c_char,
+    selection: *const c_char,
+) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(profile_transfer::import(text(document)?, text(selection)?)?)
+            .map_err(|error| error.to_string())
+    })
 }
 
 /// Saves metadata and optionally a Windows credential. A null password preserves the saved password.

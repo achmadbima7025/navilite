@@ -26,6 +26,11 @@ public partial class MainWindow : Window
         _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
         _viewModel.RowsCopyRequested += text => Clipboard.SetText(text);
         _viewModel.DefinitionCopyRequested += text => Clipboard.SetText(text);
+        _viewModel.ConnectionImportSelectionRequested += preview =>
+        {
+            var dialog = new ConnectionImportWindow(preview) { Owner = this };
+            return dialog.ShowDialog() == true ? dialog.SelectedIndices : null;
+        };
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.Page)) RebuildGridColumns();
@@ -176,6 +181,34 @@ public partial class MainWindow : Window
             Filter = "Certificates (*.pem;*.crt;*.cer;*.der)|*.pem;*.crt;*.cer;*.der|All files (*.*)|*.*"
         };
         if (dialog.ShowDialog(this) == true) _viewModel.SetCertificate(dialog.FileName);
+    }
+
+    private async void ImportConnections_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_viewModel.CanEdit) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import connection metadata",
+            Filter = "NaviLite connections (*.nvconn.json)|*.nvconn.json|JSON files (*.json)|*.json",
+            Multiselect = false,
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) == true) await _viewModel.ImportConnectionsAsync(dialog.FileName);
+    }
+
+    private async void ExportConnections_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_viewModel.CanExportConnections) return;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export saved connection metadata",
+            Filter = "NaviLite connections (*.nvconn.json)|*.nvconn.json|All files (*.*)|*.*",
+            DefaultExt = ".nvconn.json",
+            FileName = "connections.nvconn.json",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(this) == true) await _viewModel.ExportConnectionsAsync(dialog.FileName);
     }
 
     private async void Window_Closing(object? sender, CancelEventArgs e)

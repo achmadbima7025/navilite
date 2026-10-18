@@ -5,7 +5,7 @@ using NaviLite.Desktop.Models;
 
 namespace NaviLite.Desktop.Services;
 
-public enum RowCopyFormat { Csv, Tsv, Json, SqlInsert }
+public enum RowCopyFormat { Csv, Tsv, Json, SqlInsert, SqlUpdate }
 
 public static class RowCopy
 {

@@ -6,19 +6,19 @@ const MAX_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CopyRow {
-    index: usize,
-    cells: Vec<CopyCell>,
+pub(crate) struct CopyRow {
+    pub index: usize,
+    pub cells: Vec<CopyCell>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CopyCell {
-    value: Option<String>,
-    truncated: bool,
+pub(crate) struct CopyCell {
+    pub value: Option<String>,
+    pub truncated: bool,
 }
 
-enum LiteralKind {
+pub(crate) enum LiteralKind {
     Integer,
     Decimal,
     Float,
@@ -26,7 +26,7 @@ enum LiteralKind {
     Binary,
 }
 
-fn literal_kind(column: &schema::Column) -> Result<LiteralKind, String> {
+pub(crate) fn literal_kind(column: &schema::Column) -> Result<LiteralKind, String> {
     let sql_type = column.sql_type.to_ascii_lowercase();
     let base = sql_type.split(['(', ' ']).next().unwrap_or("");
     match base {
@@ -36,13 +36,21 @@ fn literal_kind(column: &schema::Column) -> Result<LiteralKind, String> {
         "char" | "varchar" | "tinytext" | "text" | "mediumtext" | "longtext" | "json"
         | "enum" | "set" | "date" | "datetime" | "time" | "timestamp" | "year" => Ok(LiteralKind::Text),
         "binary" | "varbinary" | "tinyblob" | "blob" | "mediumblob" | "longblob" => Ok(LiteralKind::Binary),
-        _ => Err(format!("SQL INSERT copying does not yet support column {}. BIT, spatial, vector, and unknown types require another export format.", column.name)),
+        _ => Err(format!("SQL row copying does not yet support column {}. BIT, spatial, vector, and unknown types require another export format.", column.name)),
     }
 }
 
-struct SqlOutput(String);
+pub(crate) struct SqlOutput(String);
 
 impl SqlOutput {
+    pub fn new() -> Self {
+        Self(String::new())
+    }
+
+    pub fn finish(self) -> String {
+        self.0
+    }
+
     fn reserve(&mut self, bytes: usize) -> Result<(), String> {
         if self.0.len().saturating_add(bytes) > MAX_BYTES {
             return Err("SQL clipboard output is limited to 8 MiB. Select fewer records.".into());
@@ -51,13 +59,13 @@ impl SqlOutput {
         Ok(())
     }
 
-    fn push(&mut self, value: &str) -> Result<(), String> {
+    pub fn push(&mut self, value: &str) -> Result<(), String> {
         self.reserve(value.len())?;
         self.0.push_str(value);
         Ok(())
     }
 
-    fn hex(&mut self, value: &[u8]) -> Result<(), String> {
+    pub fn hex(&mut self, value: &[u8]) -> Result<(), String> {
         self.reserve(value.len().saturating_mul(2))?;
         const DIGITS: &[u8; 16] = b"0123456789ABCDEF";
         for byte in value {
@@ -67,7 +75,7 @@ impl SqlOutput {
         Ok(())
     }
 
-    fn literal(&mut self, kind: &LiteralKind, value: Option<&str>) -> Result<(), String> {
+    pub fn literal(&mut self, kind: &LiteralKind, value: Option<&str>) -> Result<(), String> {
         let Some(value) = value else {
             return self.push("NULL");
         };
@@ -136,7 +144,7 @@ impl SqlOutput {
     }
 }
 
-pub fn copy(page_id: u64, payload: &str) -> Result<String, String> {
+pub(crate) fn parse_rows(payload: &str) -> Result<Vec<CopyRow>, String> {
     if payload.len() > MAX_BYTES {
         return Err("SQL copy input is limited to 8 MiB. Select fewer records.".into());
     }
@@ -150,6 +158,32 @@ pub fn copy(page_id: u64, payload: &str) -> Result<String, String> {
     if rows.windows(2).any(|pair| pair[0].index == pair[1].index) {
         return Err("SQL copying requires distinct selected records.".into());
     }
+    Ok(rows)
+}
+
+impl CopyRow {
+    pub fn validate(&self, context: &cell_value::PageContext) -> Result<(), String> {
+        if self.index >= context.keys.len() || self.cells.len() != context.columns.len() {
+            return Err(
+                "The selected record does not belong to this data page. Refresh and try again."
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+}
+
+impl CopyCell {
+    pub fn complete(&self) -> Result<Option<&str>, String> {
+        if self.truncated {
+            return Err("A selected assignment value is shortened. No rows were copied. Choose records with complete values or inspect the cell.".into());
+        }
+        Ok(self.value.as_deref())
+    }
+}
+
+pub fn copy(page_id: u64, payload: &str) -> Result<String, String> {
+    let rows = parse_rows(payload)?;
     let context = cell_value::copy_context(page_id)?;
     if !context.is_base_table {
         return Err(
@@ -172,7 +206,7 @@ pub fn copy(page_id: u64, payload: &str) -> Result<String, String> {
     if columns.is_empty() {
         return Err("This table has no non-generated columns to copy.".into());
     }
-    let mut sql = SqlOutput(String::new());
+    let mut sql = SqlOutput::new();
     sql.push("INSERT INTO ")?;
     sql.push(&schema::identifier(&context.database)?)?;
     sql.push(".")?;
@@ -186,12 +220,7 @@ pub fn copy(page_id: u64, payload: &str) -> Result<String, String> {
     }
     sql.push(") VALUES\r\n")?;
     for (position, row) in rows.iter().enumerate() {
-        if row.index >= context.keys.len() || row.cells.len() != context.columns.len() {
-            return Err(
-                "The selected record does not belong to this data page. Refresh and try again."
-                    .into(),
-            );
-        }
+        row.validate(&context)?;
         if position > 0 {
             sql.push(",\r\n")?;
         }
@@ -201,13 +230,10 @@ pub fn copy(page_id: u64, payload: &str) -> Result<String, String> {
                 sql.push(", ")?;
             }
             let cell = &row.cells[*index];
-            if cell.truncated {
-                return Err("A selected non-generated cell is shortened. No rows were copied. Choose records with complete values or inspect the cell.".into());
-            }
-            sql.literal(kind, cell.value.as_deref())?;
+            sql.literal(kind, cell.complete()?)?;
         }
         sql.push(")")?;
     }
     sql.push(";\r\n")?;
-    Ok(sql.0)
+    Ok(sql.finish())
 }

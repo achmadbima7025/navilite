@@ -8,5 +8,6 @@ mod page_options;
 mod profile_transfer;
 mod profiles;
 mod row_insert;
+mod row_update;
 mod schema;
 mod table_page;

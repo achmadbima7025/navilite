@@ -212,6 +212,7 @@
                                 <MenuItem Header="JSON array" Tag="Json" Click="CopyRows_Click" />
                                 <Separator />
                                 <MenuItem Header="SQL INSERT (selected rows)" Tag="SqlInsert" Click="CopyRows_Click" ToolTip="Base tables only. Copies complete values; generated columns are omitted." />
+                                <MenuItem Header="SQL UPDATE (by primary key)" Tag="SqlUpdate" Click="CopyRows_Click" ToolTip="Uses original primary keys. Key and generated columns are omitted from SET." />
                             </MenuItem>
                         </Menu>
                     </WrapPanel>

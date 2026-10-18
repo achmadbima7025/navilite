@@ -6,7 +6,10 @@ namespace NaviLite.Desktop.Services;
 
 public sealed unsafe partial class NativeCore
 {
-    public Task<string> CopyRowsAsInsertAsync(NativePage page, IReadOnlyList<NativeRow> rows) => Task.Run(() =>
+    public Task<string> CopyRowsAsInsertAsync(NativePage page, IReadOnlyList<NativeRow> rows) => CopyRowsAsSqlAsync(page, rows, false);
+    public Task<string> CopyRowsAsUpdateAsync(NativePage page, IReadOnlyList<NativeRow> rows) => CopyRowsAsSqlAsync(page, rows, true);
+
+    private Task<string> CopyRowsAsSqlAsync(NativePage page, IReadOnlyList<NativeRow> rows, bool update) => Task.Run(() =>
         page.WithPageLease(pageId =>
         {
             if (rows.Count is < 1 or > 1000 || rows.Any(row => !row.BelongsTo(page)))
@@ -41,6 +44,8 @@ public sealed unsafe partial class NativeCore
             byte[] payload = new byte[checked((int)buffer.Length + 1)];
             buffer.GetBuffer().AsSpan(0, (int)buffer.Length).CopyTo(payload);
             fixed (byte* pointer = payload)
-                return Read<string>(NativeMethods.navilite_rows_insert_sql(pageId, pointer));
+                return Read<string>(update
+                    ? NativeMethods.navilite_rows_update_sql(pageId, pointer)
+                    : NativeMethods.navilite_rows_insert_sql(pageId, pointer));
         }));
 }

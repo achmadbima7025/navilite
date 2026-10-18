@@ -4,6 +4,19 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-19
+
+### Added
+
+- Copy selected grid records or the active Form View record as SQL UPDATE statements addressed by all captured primary-key columns, with `LIMIT 1` on every statement.
+- Native original key values for predicates, including composite keys, exact integer/decimal tokens, UTF-8 introduced text literals that defer to column collation, binary keys, numeric YEAR values, and explicit DATE/DATETIME/TIME casts preserving fractional seconds.
+- Assignment lists excluding primary keys and generated columns, complete-value validation, and explicit rejection of missing/incomplete/oversized or ambiguous key identities.
+- Shared bounded SQL literal/payload handling for INSERT and UPDATE, additive `navilite_rows_update_sql` FFI, generated C# bindings, and a SQL UPDATE clipboard menu action.
+
+### Scope
+
+- Formatting only: no SQL execution, server reread, generated-value logging, or database changes. Input/output limits remain 8 MiB. UPDATE supports base tables with at least one non-key, non-generated supported column and usable retained primary keys. FLOAT/DOUBLE, TIMESTAMP, ENUM/SET, BIT, spatial/vector, and unknown primary-key types are rejected. Key limits remain 4 KiB per column and 16 KiB per row. Scripts do not perform optimistic concurrency checks or start a transaction; target schema/session settings and changed or reused keys require review before execution elsewhere.
+
 ## [0.9.0] - 2026-10-19
 
 ### Added

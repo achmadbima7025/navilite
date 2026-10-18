@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.9.0
+## Status aplikasi: 0.10.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -140,7 +140,14 @@ Inkrement 0.9.0 menambahkan salinan SQL INSERT:
 - Inkrement ini mendukung base table dengan tipe angka umum, teks, JSON, ENUM/SET, tanggal/waktu, dan biner/BLOB. View, BIT, tipe spasial/vector atau tipe lain yang belum didukung, serta tabel dengan semua kolom generated ditolak. Saat membaca halaman, satu query metadata jenis objek ditambahkan dan query kolom juga membaca penanda generated; nilai data tetap memakai frame NVLR v1. Pembacaan halaman memerlukan metadata `information_schema.COLUMNS.GENERATION_EXPRESSION`; server lama yang belum menyediakan kolom tersebut belum didukung.
 - SQL merupakan snapshot nilai yang ditampilkan, bukan backup atau migrasi. Tinjau tujuan, konflik key/auto-increment, kolom/constraint target, SQL mode, time zone untuk TIMESTAMP, serta batas paket sebelum menjalankannya di alat lain. Aplikasi hanya menyalin statement dan tidak mengubah database. Perubahan skema/data server setelah halaman dibuka tidak divalidasi ulang saat menyalin.
 
-SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.10.0 menambahkan salinan SQL UPDATE:
+
+- Pada tabel, pilih baris grid atau record aktif di Form View lalu Copy rows as → SQL UPDATE. Rust membuat satu statement per record menurut urutan halaman. `SET` memuat kolom non-primary-key dan non-generated dari snapshot. `WHERE` memakai seluruh kolom primary key asli, termasuk key gabungan, dan setiap statement diakhiri `LIMIT 1`. Tidak ada statement tanpa kondisi primary key.
+- Nilai key berasal dari identitas asli yang ditahan Rust saat halaman dibaca. Integer/desimal tetap memakai representasi presisi penuh; key teks memakai literal `_utf8mb4 X'HEX'` agar perbandingan mengikuti collation kolom, key biner memakai `X'HEX'`, YEAR memakai token angka, dan DATE/DATETIME/TIME memakai cast eksplisit dengan mikrodetik untuk tipe yang mendukungnya. Aturan prioritas collation mengikuti [dokumentasi MySQL](https://dev.mysql.com/doc/refman/8.4/en/charset-collation-coercibility.html). Cuplikan key pada grid boleh terpotong jika identitas asli lengkap tersedia. Semua nilai yang masuk `SET` harus lengkap dalam halaman.
+- Tabel tanpa primary key, view, identitas kedaluwarsa/tidak lengkap/terlalu besar, tabel tanpa kolom yang bisa dimasukkan ke `SET`, dan tipe nilai yang belum didukung ditolak sebelum clipboard berubah. Primary key FLOAT/DOUBLE, TIMESTAMP, ENUM/SET, BIT, spasial/vector, serta tipe key yang tidak dikenal belum didukung. Identitas key tetap dibatasi 4 KiB per kolom dan 16 KiB per record. Batas input JSON dan seluruh skrip adalah 8 MiB.
+- Penyalinan tidak membaca ulang server, menjalankan UPDATE, atau mencatat isi skrip di log/history. Skrip menargetkan database/tabel asli. Skrip juga tidak menambahkan transaksi atau memeriksa perubahan kolom non-key: data yang berubah sejak halaman dibuka, termasuk record yang dihapus lalu dibuat ulang dengan key yang sama, memerlukan pemeriksaan sebelum eksekusi. Tinjau skema, constraint, dan pengaturan sesi tujuan seperti pada salinan INSERT.
+
+SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -172,6 +179,7 @@ Struktur kode:
 | `native/navilite-core/src/cell_value.rs` | Identitas record selama halaman hidup, pembacaan nilai terbatas, dan frame NVLC |
 | `native/navilite-core/src/history.rs` | Riwayat template SQL terbatas per sesi dan pencatatan durasi/hasil/interupsi |
 | `native/navilite-core/src/row_insert.rs` | Pembuatan SQL INSERT terbatas dari metadata halaman dan nilai pilihan, tanpa eksekusi |
+| `native/navilite-core/src/row_update.rs` | Pembuatan SQL UPDATE dengan primary key asli, daftar SET tanpa key/generated, dan LIMIT 1 |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
 | `src/NaviLite.Desktop/CellInspectorWindow.xaml` | Viewer teks/JSON/hex baca saja dan penyimpanan byte yang dimuat |
 | `src/NaviLite.Desktop/Services/RowCopy.cs` | Pemformatan CSV/TSV/JSON dari frame dengan batas output clipboard |
@@ -207,6 +215,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_cell_read` | Page ID, indeks baris/kolom halaman (u32); `FfiBuffer` NVLC berisi nilai saat ini berdasarkan primary key |
 | `navilite_page_release` | Page ID; melepas identitas, idempotent, tidak membebaskan buffer NVLR |
 | `navilite_rows_insert_sql` | Page ID dan array JSON `{index,cells:[{value,truncated}]}`; string INSERT, hanya format, tanpa SQL ke server |
+| `navilite_rows_update_sql` | Page ID dan array nilai yang sama; skrip UPDATE memakai seluruh primary key asli dan LIMIT 1, tanpa eksekusi |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
@@ -251,10 +260,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.9.0
+./scripts/Set-Version.ps1 -Version 0.10.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.9.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.10.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

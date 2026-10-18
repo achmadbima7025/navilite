@@ -10,4 +10,5 @@ mod profiles;
 mod row_insert;
 mod row_update;
 mod schema;
+mod sql_script;
 mod table_page;

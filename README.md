@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.10.0
+## Status aplikasi: 0.11.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -147,7 +147,15 @@ Inkrement 0.10.0 menambahkan salinan SQL UPDATE:
 - Tabel tanpa primary key, view, identitas kedaluwarsa/tidak lengkap/terlalu besar, tabel tanpa kolom yang bisa dimasukkan ke `SET`, dan tipe nilai yang belum didukung ditolak sebelum clipboard berubah. Primary key FLOAT/DOUBLE, TIMESTAMP, ENUM/SET, BIT, spasial/vector, serta tipe key yang tidak dikenal belum didukung. Identitas key tetap dibatasi 4 KiB per kolom dan 16 KiB per record. Batas input JSON dan seluruh skrip adalah 8 MiB.
 - Penyalinan tidak membaca ulang server, menjalankan UPDATE, atau mencatat isi skrip di log/history. Skrip menargetkan database/tabel asli. Skrip juga tidak menambahkan transaksi atau memeriksa perubahan kolom non-key: data yang berubah sejak halaman dibuka, termasuk record yang dihapus lalu dibuat ulang dengan key yang sama, memerlukan pemeriksaan sebelum eksekusi. Tinjau skema, constraint, dan pengaturan sesi tujuan seperti pada salinan INSERT.
 
-SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.11.0 menambahkan fondasi SQL editor:
+
+- Tab SQL editor tersedia tanpa koneksi. Buat dokumen baru, buka berkas SQL UTF-8 (BOM opsional), lalu Save as untuk menyimpan tanpa BOM. Ctrl+N/O/S berlaku di dalam editor. Perubahan yang belum disimpan memerlukan pilihan Save/Discard/Cancel saat dokumen diganti atau aplikasi ditutup. Save as selalu meminta lokasi dan konfirmasi penggantian berkas; kegagalan baca/simpan mempertahankan dokumen yang sedang diedit.
+- Analyze script (Ctrl+F9) memanggil lexer Rust dan menampilkan daftar statement dengan baris sumber dan cuplikan. Select current (F9) atau pemilihan baris daftar menyorot rentang teks asli. Kursor pada akhir statement memilih statement tersebut; di sela statement memilih yang berikutnya, dan setelah statement terakhir memilih yang terakhir. Mengedit teks atau opsi lexer menghapus analisis lama.
+- Pemisahan menangani string kutip tunggal/ganda, identifier backtick, kutip ganda berulang, komentar `#`, `--` yang diikuti whitespace/control/EOF, dan komentar blok. Opsi Backslash escapes in strings dan ANSI_QUOTES perlu disesuaikan dengan SQL mode yang dimaksud; backtick selalu memakai penggandaan kutip. Komentar biasa tanpa SQL diabaikan; komentar executable/hint tetap dihitung sebagai isi. Ini pemisahan leksikal, bukan validasi sintaks SQL.
+- `DELIMITER` panjang dikenali tanpa membedakan kapital pada awal baris setelah spasi/tab. Akhiri statement sebelum mengganti delimiter. Token delimiter harus satu token ASCII tercetak tanpa kutip sepanjang 1–32 byte; quote/backtick, backslash, `#`, penanda komentar, serta token tunggal `/` dan `-` ditolak. `;`, `$$`, `//`, dan `;;` didukung. Perintah klien mysql lain belum diinterpretasikan. Lihat [perintah klien MySQL](https://dev.mysql.com/doc/refman/8.4/en/mysql-commands.html).
+- Batas skrip/berkas 1 MiB UTF-8 dan 1.000 statement; Unicode menggunakan offset UTF-16 agar seleksi WPF tetap sesuai. Kutip/komentar blok yang belum selesai menghasilkan lokasi kesalahan tanpa menampilkan isi skrip di log. Dokumen hanya disimpan melalui tindakan Save as; analisis tidak mengakses database atau mencatat isi skrip ke history.
+
+SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, eksekusi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete/formatting SQL, multi-dokumen/result grid, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -180,6 +188,9 @@ Struktur kode:
 | `native/navilite-core/src/history.rs` | Riwayat template SQL terbatas per sesi dan pencatatan durasi/hasil/interupsi |
 | `native/navilite-core/src/row_insert.rs` | Pembuatan SQL INSERT terbatas dari metadata halaman dan nilai pilihan, tanpa eksekusi |
 | `native/navilite-core/src/row_update.rs` | Pembuatan SQL UPDATE dengan primary key asli, daftar SET tanpa key/generated, dan LIMIT 1 |
+| `native/navilite-core/src/sql_script.rs` | Lexer SQL offline, DELIMITER, lokasi kesalahan, dan rentang statement UTF-16 |
+| `src/NaviLite.Desktop/ViewModels/SqlEditorViewModel.cs` | Dokumen SQL, perubahan belum disimpan, opsi lexer, dan pemilihan statement |
+| `src/NaviLite.Desktop/Services/SqlScriptFiles.cs` | Baca UTF-8 terbatas dan penyimpanan atomik dokumen SQL |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
 | `src/NaviLite.Desktop/CellInspectorWindow.xaml` | Viewer teks/JSON/hex baca saja dan penyimpanan byte yang dimuat |
 | `src/NaviLite.Desktop/Services/RowCopy.cs` | Pemformatan CSV/TSV/JSON dari frame dengan batas output clipboard |
@@ -216,6 +227,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_page_release` | Page ID; melepas identitas, idempotent, tidak membebaskan buffer NVLR |
 | `navilite_rows_insert_sql` | Page ID dan array JSON `{index,cells:[{value,truncated}]}`; string INSERT, hanya format, tanpa SQL ke server |
 | `navilite_rows_update_sql` | Page ID dan array nilai yang sama; skrip UPDATE memakai seluruh primary key asli dan LIMIT 1, tanpa eksekusi |
+| `navilite_sql_script_analyze` | JSON `{script,caretUtf16,backslashEscapes,ansiQuotes}`; daftar rentang UTF-16, currentIndex berbasis nol/null, jumlah directive dan panjang dokumen; offline |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
@@ -260,10 +272,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.10.0
+./scripts/Set-Version.ps1 -Version 0.11.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.10.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.11.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

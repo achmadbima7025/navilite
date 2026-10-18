@@ -5,7 +5,7 @@ use crate::{
     page_options::PageOptions,
     profile_transfer,
     profiles::{self, ConnectionProfile},
-    row_insert, row_update, schema, table_page,
+    row_insert, row_update, schema, sql_script, table_page,
 };
 use serde_json::{json, Value};
 use std::{
@@ -91,6 +91,16 @@ unsafe fn password(value: *const c_char) -> Result<Option<Zeroizing<String>>, St
 #[no_mangle]
 pub extern "C" fn navilite_core_info() -> FfiResult {
     boundary(|| Ok(json!({ "version": env!("CARGO_PKG_VERSION"), "abiVersion": 1 })))
+}
+
+/// Finds offline MySQL statement spans in UTF-16 offsets. Never executes SQL.
+/// # Safety
+/// Request must be a valid NUL-terminated UTF-8 JSON string for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_sql_script_analyze(request: *const c_char) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(sql_script::analyze(text(request)?)?).map_err(|e| e.to_string())
+    })
 }
 
 #[no_mangle]

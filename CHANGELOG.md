@@ -4,6 +4,19 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-19
+
+### Added
+
+- Offline SQL editor with new/open/save-as actions, dirty-document prompts on replacement and exit, and bounded strict UTF-8 files (optional input BOM, no output BOM). Saves replace the selected file through a sibling temporary file; failed reads/saves retain the current document.
+- Rust statement-boundary lexer with single/double/backtick quoting, doubled quotes, configurable string backslash escapes and ANSI_QUOTES, MySQL line/block comments, and line-start DELIMITER directives for stored routines.
+- Statement list with source lines, previews, UTF-16 spans, and caret-based selection. F9 selects the current statement; Ctrl+F9 analyzes the script. Ctrl+N/O/S manage documents within the editor.
+- Additive `navilite_sql_script_analyze` API and generated C# bindings. Analysis is available without a database connection and excludes script contents from application logs/history.
+
+### Scope
+
+- Lexical boundaries only; SQL execution, syntax validation, highlighting, autocomplete, formatting, multiple documents, and result grids remain pending. Scripts are limited to 1 MiB UTF-8 and 1,000 statements. DELIMITER accepts one unquoted printable ASCII token of 1–32 bytes, excluding quotes, backslashes, `#`, comment markers, and single `/` or `-`; other mysql client commands are not interpreted. Executable/hint comments are retained as content; ordinary comment-only fragments are omitted. Lexer modes are explicit editor options rather than server-derived settings. No SQL is sent to a server.
+
 ## [0.10.0] - 2026-10-19
 
 ### Added

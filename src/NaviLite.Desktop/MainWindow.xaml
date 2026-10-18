@@ -381,6 +381,45 @@
                              AcceptsReturn="True" TextWrapping="NoWrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="Read-only object CREATE statement" />
                 </Grid>
               </TabItem>
+              <TabItem Header="SQL editor">
+                <Grid Margin="12" PreviewKeyDown="SqlWorkspace_KeyDown">
+                    <Grid.InputBindings>
+                        <KeyBinding Key="F9" Command="{Binding SelectCurrentSqlCommand}" />
+                        <KeyBinding Key="F9" Modifiers="Control" Command="{Binding AnalyzeSqlCommand}" />
+                    </Grid.InputBindings>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" /><RowDefinition Height="2*" /><RowDefinition Height="8" /><RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="{Binding SqlDocumentTitle}" FontSize="23" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding SqlPath}" Margin="0,0,0,8" />
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+                        <Button Content="New" Click="NewSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+N" />
+                        <Button Content="Open…" Click="OpenSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+O" />
+                        <Button Content="Save as…" Click="SaveSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+S — choose a file and confirm replacement" />
+                        <Button Content="Analyze script" Command="{Binding AnalyzeSqlCommand}" ToolTip="Ctrl+F9 — find all statement boundaries" />
+                        <Button Content="Select current" Command="{Binding SelectCurrentSqlCommand}" ToolTip="F9 — highlight the statement at the caret" />
+                    </WrapPanel>
+                    <WrapPanel Grid.Row="2" IsEnabled="{Binding CanUseSqlEditor}" Margin="0,0,0,8">
+                        <CheckBox Content="Backslash escapes in strings" IsChecked="{Binding SqlBackslashEscapes}" Margin="0,0,16,0" />
+                        <CheckBox Content="ANSI_QUOTES" IsChecked="{Binding SqlAnsiQuotes}" ToolTip="Treat double quotes as identifier quotes. Match the script's intended SQL mode." />
+                    </WrapPanel>
+                    <TextBlock Grid.Row="3" Text="{Binding SqlAnalysisStatus}" Foreground="#75849A" TextWrapping="Wrap" Margin="0,0,0,8" />
+                    <TextBox x:Name="ScriptEditor" Grid.Row="4" Text="{Binding SqlText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanUseSqlEditor}"
+                             SelectionChanged="ScriptEditor_SelectionChanged" FontFamily="Cascadia Mono, Consolas" FontSize="13" MaxLength="1048576"
+                             AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" VerticalContentAlignment="Top"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="SQL script editor" />
+                    <GridSplitter Grid.Row="5" Height="5" HorizontalAlignment="Stretch" Background="#DCE3EF" />
+                    <DataGrid Grid.Row="6" ItemsSource="{Binding SqlStatements}" SelectedItem="{Binding SelectedSqlStatement, Mode=TwoWay}"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False"
+                              SelectionMode="Single" SelectionUnit="FullRow" EnableRowVirtualization="True" BorderBrush="#E0E6F0" AutomationProperties.Name="SQL statement boundaries">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="45" />
+                            <DataGridTextColumn Header="Line" Binding="{Binding StartLine}" Width="65" />
+                            <DataGridTextColumn Header="Statement preview" Binding="{Binding Preview}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+              </TabItem>
             </TabControl>
         </Grid>
     </DockPanel>

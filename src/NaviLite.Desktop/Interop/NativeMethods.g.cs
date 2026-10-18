@@ -21,6 +21,14 @@ namespace NaviLite.Desktop.Interop
         [DllImport(__DllName, EntryPoint = "navilite_core_info", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern FfiResult navilite_core_info();
 
+        /// <summary>
+        ///  Finds offline MySQL statement spans in UTF-16 offsets. Never executes SQL.
+        ///  # Safety
+        ///  Request must be a valid NUL-terminated UTF-8 JSON string for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_sql_script_analyze", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_sql_script_analyze(byte* request);
+
         [DllImport(__DllName, EntryPoint = "navilite_profiles_list", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern FfiResult navilite_profiles_list();
 

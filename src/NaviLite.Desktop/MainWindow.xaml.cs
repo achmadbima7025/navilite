@@ -26,6 +26,12 @@ public partial class MainWindow : Window
         _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
         _viewModel.RowsCopyRequested += text => Clipboard.SetText(text);
         _viewModel.DefinitionCopyRequested += text => Clipboard.SetText(text);
+        _viewModel.SqlSelectionRequested += span => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            ScriptEditor.Select(span.StartUtf16, span.LengthUtf16);
+            ScriptEditor.ScrollToLine(span.StartLine - 1);
+            ScriptEditor.Focus();
+        }));
         _viewModel.ConnectionImportSelectionRequested += preview =>
         {
             var dialog = new ConnectionImportWindow(preview) { Owner = this };
@@ -211,6 +217,62 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true) await _viewModel.ExportConnectionsAsync(dialog.FileName);
     }
 
+    private void ScriptEditor_SelectionChanged(object sender, RoutedEventArgs e) => _viewModel.SqlCaretUtf16 = ScriptEditor.CaretIndex;
+
+    private async void NewSql_Click(object sender, RoutedEventArgs e) => await NewSqlAsync();
+    private async void OpenSql_Click(object sender, RoutedEventArgs e) => await OpenSqlAsync();
+    private async void SaveSql_Click(object sender, RoutedEventArgs e) => await SaveSqlAsync();
+
+    private async Task NewSqlAsync()
+    {
+        if (_viewModel.CanUseSqlEditor && await ConfirmSqlReplacementAsync()) _viewModel.NewSqlDocument();
+    }
+
+    private async Task OpenSqlAsync()
+    {
+        if (!_viewModel.CanUseSqlEditor) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "Open UTF-8 SQL script",
+            Filter = "SQL files (*.sql)|*.sql|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) == true && await ConfirmSqlReplacementAsync())
+            await _viewModel.OpenSqlFileAsync(dialog.FileName);
+    }
+
+    private async Task<bool> SaveSqlAsync()
+    {
+        if (!_viewModel.CanUseSqlEditor) return false;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save UTF-8 SQL script",
+            Filter = "SQL files (*.sql)|*.sql|All files (*.*)|*.*",
+            DefaultExt = ".sql",
+            FileName = _viewModel.SqlPath ?? "Untitled.sql",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        return dialog.ShowDialog(this) == true && await _viewModel.SaveSqlFileAsync(dialog.FileName);
+    }
+
+    private async Task<bool> ConfirmSqlReplacementAsync()
+    {
+        if (!_viewModel.IsSqlDirty) return true;
+        var choice = MessageBox.Show(this, "Save changes to the SQL document before continuing?", "Unsaved SQL document", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        return choice == MessageBoxResult.No || (choice == MessageBoxResult.Yes && await SaveSqlAsync());
+    }
+
+    private async void SqlWorkspace_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control || e.Key is not (Key.N or Key.O or Key.S)) return;
+        e.Handled = true;
+        if (e.Key == Key.N) await NewSqlAsync();
+        else if (e.Key == Key.O) await OpenSqlAsync();
+        else await SaveSqlAsync();
+    }
+
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
         if (_canClose) return;
@@ -221,9 +283,23 @@ public partial class MainWindow : Window
         try
         {
             await _viewModel.WaitForIdleAsync();
-            await _viewModel.DisconnectAsync();
+            if (!await ConfirmSqlReplacementAsync())
+            {
+                _closing = false;
+                IsEnabled = true;
+                return;
+            }
         }
+        catch (Exception)
+        {
+            _closing = false;
+            IsEnabled = true;
+            MessageBox.Show(this, "The SQL document could not be prepared for closing. Save or discard its changes and try again.", "Unable to close", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        try { await _viewModel.DisconnectAsync(); }
         catch (Exception) { /* Process exit releases any remaining native sockets. */ }
-        finally { _canClose = true; Close(); }
+        _canClose = true;
+        Close();
     }
 }

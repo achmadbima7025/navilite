@@ -49,7 +49,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         ClearHistoryCommand = new(() => RunAsync(ClearHistoryAsync), () => CanBrowse);
         AddFilterCommand = new(AddFilterAsync, () => CanQuery && DraftFilters.Count < 16);
         AddSortCommand = new(AddSortAsync, () => CanQuery && DraftSorts.Count < 8);
-        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand, InspectDefinitionCommand, ReloadDefinitionCommand, CopyDefinitionCommand, RefreshBranchCommand];
+        AnalyzeSqlCommand = new(() => AnalyzeSqlAsync(false), () => CanUseSqlEditor);
+        SelectCurrentSqlCommand = new(() => AnalyzeSqlAsync(true), () => CanUseSqlEditor);
+        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand, InspectDefinitionCommand, ReloadDefinitionCommand, CopyDefinitionCommand, RefreshBranchCommand, AnalyzeSqlCommand, SelectCurrentSqlCommand];
         ResetQueryState();
     }
 
@@ -254,6 +256,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Changed(nameof(CanQuery));
         Changed(nameof(CanExportDefinition));
         Changed(nameof(CanExportConnections));
+        Changed(nameof(CanUseSqlEditor));
         RefreshCommands();
     }
 

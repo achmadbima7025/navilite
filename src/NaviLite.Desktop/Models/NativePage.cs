@@ -20,6 +20,7 @@ public sealed class NativeRow(NativePage page, int row)
 public sealed unsafe class NativePage : SafeHandle
 {
     private readonly nuint _length;
+    private readonly ulong _pageId;
     private int _directory;
     public override bool IsInvalid => handle == IntPtr.Zero;
     public IReadOnlyList<PageColumn> Columns { get; private set; } = [];
@@ -31,8 +32,10 @@ public sealed unsafe class NativePage : SafeHandle
     public uint TruncatedCells { get; private set; }
     public ulong ByteLength => _length;
 
-    internal NativePage(FfiBuffer result) : base(IntPtr.Zero, true)
+    internal NativePage(FfiPage page) : base(IntPtr.Zero, true)
     {
+        var result = page.buffer;
+        _pageId = page.page_id;
         _length = result.length;
         SetHandle((nint)result.data);
         try
@@ -122,8 +125,41 @@ public sealed unsafe class NativePage : SafeHandle
         finally { if (added) DangerousRelease(); }
     }
 
+    internal CellValue PreviewValue(int row, int column)
+    {
+        if ((uint)row >= (uint)Rows.Count || (uint)column >= (uint)Columns.Count)
+            throw new InvalidOperationException("Select a cell in the current data page.");
+        bool added = false;
+        try
+        {
+            DangerousAddRef(ref added);
+            var bytes = new ReadOnlySpan<byte>((void*)handle, checked((int)_length));
+            int start = Position(bytes, _directory + row * 4);
+            int cell = checked(start + Position(bytes, start + column * 4));
+            byte tag = bytes[cell];
+            int length = Position(bytes, cell + 1);
+            bool truncated = (tag & 128) != 0;
+            return new(bytes.Slice(cell + 5, length).ToArray(), (tag & 127) == 0, (tag & 127) == 2, truncated, truncated ? null : (ulong)length);
+        }
+        finally { if (added) DangerousRelease(); }
+    }
+
+    internal CellValue ReadValue(int row, int column)
+    {
+        if ((uint)row >= (uint)Rows.Count || (uint)column >= (uint)Columns.Count)
+            throw new InvalidOperationException("Select a cell in the current data page.");
+        bool added = false;
+        try
+        {
+            DangerousAddRef(ref added);
+            return CellValue.FromNative(NativeMethods.navilite_cell_read(_pageId, (uint)row, (uint)column));
+        }
+        finally { if (added) DangerousRelease(); }
+    }
+
     protected override bool ReleaseHandle()
     {
+        NativeMethods.navilite_page_release(_pageId);
         NativeMethods.navilite_buffer_free((byte*)handle, _length);
         return true;
     }

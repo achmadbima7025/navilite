@@ -3,14 +3,10 @@ $naviliteDotnet = Join-Path $env:LOCALAPPDATA 'NaviLite/dotnet'
 $naviliteCargo = Join-Path $env:USERPROFILE '.cargo/bin'
 if (Test-Path (Join-Path $naviliteDotnet 'dotnet.exe')) {
     $env:DOTNET_ROOT = $naviliteDotnet
-    if (($env:PATH -split ';') -notcontains $naviliteDotnet) {
-        $env:PATH = "$naviliteDotnet;$env:PATH"
-    }
+    $env:PATH = (@($naviliteDotnet) + @(($env:PATH -split ';') | Where-Object { $_ -ne $naviliteDotnet })) -join ';'
 }
 if (Test-Path $naviliteCargo) {
-    if (($env:PATH -split ';') -notcontains $naviliteCargo) {
-        $env:PATH = "$naviliteCargo;$env:PATH"
-    }
+    $env:PATH = (@($naviliteCargo) + @(($env:PATH -split ';') | Where-Object { $_ -ne $naviliteCargo })) -join ';'
 }
 $naviliteVswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 if ((Test-Path $naviliteVswhere) -and $env:VSCMD_ARG_TGT_ARCH -ne 'x64') {

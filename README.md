@@ -19,7 +19,7 @@ Aktifkan toolchain untuk terminal PowerShell saat ini dari folder proyek:
 
 .NET dipasang per pengguna di `%LOCALAPPDATA%\NaviLite\dotnet`; Rust menggunakan `%USERPROFILE%\.cargo\bin`. Skrip aktivasi menambahkan lokasi tersebut ke PATH terminal saat ini. Tidak perlu mengubah execution policy secara permanen.
 
-Aktivasi juga memuat environment compiler MSVC x64 dari instalasi Visual Studio Build Tools yang terdeteksi.
+Aktivasi memprioritaskan .NET dan Rust proyek di PATH, termasuk ketika lokasi tersebut sudah ada setelah instalasi sistem lain. Aktivasi juga memuat environment compiler MSVC x64 dari instalasi Visual Studio Build Tools yang terdeteksi.
 
 ## Pemasangan pada komputer baru
 
@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.3.0
+## Status aplikasi: 0.4.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -79,7 +79,15 @@ Inkrement 0.3.0 menambahkan filter/sort dan Form View:
 - Apply dan Reset kembali ke halaman pertama. Previous/Next/Refresh menggunakan filter/sort yang sudah diterapkan; perubahan draft ditandai sampai Apply dipilih. Jika permintaan gagal, halaman dan kondisi aktif sebelumnya tetap tersedia.
 - Tab Form menampilkan satu record dari halaman aktif dengan nama/tipe kolom, penanda NULL, biner, dan cuplikan terpotong. Pilih record dari daftar atau gunakan tombol Record. Ctrl+G beralih grid/form; pilihan record tersinkron dan pergantian tampilan tidak membaca ulang server. Form memakai batas cuplikan yang sama dengan grid dan tetap baca saja.
 
-SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, beberapa kondisi filter/sort, editor nilai penuh, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.4.0 menambahkan Cell Inspector baca saja:
+
+- Klik ganda sel grid atau tekan F2 pada sel aktif; pada Form View pilih Inspect di bawah nama kolom. Viewer menampilkan teks, formatter JSON, dan daftar heksadesimal/ASCII dengan virtualisasi. Kolom NULL dan string/biner kosong tetap dibedakan.
+- Nilai yang lengkap dalam frame halaman langsung ditampilkan tanpa kueri tambahan. Cuplikan terpotong dibaca ulang berdasarkan primary key yang diambil bersama halaman, termasuk primary key gabungan dan angka presisi tinggi. Identitas ini tetap berada di Rust dan dilepas bersama SafeHandle halaman atau saat sesi ditutup.
+- Pembacaan nilai di server dibatasi 1 MiB. Potongan UTF-8 di ujung buffer dibuang agar teks tetap valid. Jumlah byte asli/terbaca dan penanda Partial value ditampilkan; nilai yang dibaca ulang merupakan nilai server saat ini dan dapat berubah sejak halaman dibuka.
+- Tabel/view tanpa primary key yang dapat dipakai, key terlalu besar (maksimal 4 KiB per kolom dan 16 KiB per record), tipe primary key yang belum didukung (termasuk BIT, TIMESTAMP, ENUM, dan SET), record yang hilang, perubahan skema, atau kegagalan pembacaan menghasilkan viewer cuplikan dengan alasan yang jelas. Key yang didukung meliputi integer/desimal/float, DATE/DATETIME/TIME/YEAR, teks, dan biner. Tidak memakai offset halaman untuk mencari ulang record.
+- Formatter JSON berlaku pada nilai teks lengkap sampai 256 KiB dan kedalaman 64; format tampilan tidak mengubah byte sumber. Copy value menyalin teks, hasil format JSON saat tab JSON aktif, atau heksadesimal untuk biner. Save loaded bytes menyimpan hanya byte yang sudah dimuat: biner asli atau teks UTF-8 tanpa BOM, termasuk byte NUL. Nilai NULL tidak disamakan dengan berkas kosong.
+
+SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, beberapa kondisi filter/sort, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
 
@@ -107,7 +115,9 @@ Struktur kode:
 | `native/navilite-core/src/schema.rs` | Metadata lazy-load, pengutipan identifier, dan DDL yang sudah ada |
 | `native/navilite-core/src/table_page.rs` | Proyeksi SELECT terbatas, transaksi baca saja, dan frame biner NVLR |
 | `native/navilite-core/src/page_options.rs` | Validasi filter/sort, parameter bertipe, dan urutan primary key |
+| `native/navilite-core/src/cell_value.rs` | Identitas record selama halaman hidup, pembacaan nilai terbatas, dan frame NVLC |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
+| `src/NaviLite.Desktop/CellInspectorWindow.xaml` | Viewer teks/JSON/hex baca saja dan penyimpanan byte yang dimuat |
 | `src/NaviLite.Desktop/Services/` | Wrapper native, serialisasi konfigurasi, dan penghapusan buffer sandi |
 | `src/NaviLite.Desktop/ViewModels/` | State dan command workspace WPF |
 | `src/NaviLite.Desktop/Interop/` | Binding yang dihasilkan; jangan diedit manual |
@@ -130,6 +140,9 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_object_ddl` | Handle, database, objek; string CREATE TABLE/VIEW |
 | `navilite_table_page` | Handle, database, objek, offset, page size; `FfiBuffer` berisi frame NVLR |
 | `navilite_table_page_query` | Input halaman ditambah JSON filter/sort; `FfiBuffer` dengan format NVLR yang sama |
+| `navilite_table_page_open` | Input halaman/query; `FfiPage { buffer: FfiBuffer, page_id: u64 }` dengan identitas primary key yang ditahan Rust |
+| `navilite_cell_read` | Page ID, indeks baris/kolom halaman (u32); `FfiBuffer` NVLC berisi nilai saat ini berdasarkan primary key |
+| `navilite_page_release` | Page ID; melepas identitas, idempotent, tidak membebaskan buffer NVLR |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
@@ -153,15 +166,23 @@ Semua integer di frame memakai little endian. Header 40 byte:
 
 Header diikuti metadata kolom berupa pasangan nama dan tipe SQL; setiap string diawali panjang byte u32. Berikutnya ada direktori `row_count + 1` offset absolut u32, termasuk akhir frame. Setiap baris diawali `column_count` offset sel u32 relatif terhadap awal baris. Sel berisi tag u8, panjang payload u32, lalu byte payload. Tag 0 = NULL, 1 = teks UTF-8, 2 = biner; bit 7 menandai cuplikan terpotong. C# memvalidasi header, direktori, batas sel, serta pagination sebelum mengekspos baris ke grid. Frame lama dibebaskan saat halaman diganti atau sesi diputus; SafeHandle juga menjadi pengaman finalisasi.
 
+### Identitas halaman dan frame NVLC v1
+
+`navilite_table_page_open` mempertahankan format NVLR v1 dan menambahkan ID halaman melalui struct hasil terpisah. Pada kegagalan, buffer berisi error JSON dan ID bernilai 0. Pada keberhasilan, pemanggil wajib memanggil `navilite_page_release(page_id)` serta `navilite_buffer_free(buffer.data, buffer.length)` masing-masing sekali. C# menggabungkan keduanya dalam SafeHandle dan menahan referensi handle selama pembacaan sel. API halaman sebelumnya tetap tersedia tanpa identitas untuk inspeksi.
+
+Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada server dan diperhitungkan dalam ukuran halaman adaptif; key tidak dikirim melalui JSON maupun frame grid. Identitas dilepas saat sesi ditutup, dan ID tidak dipakai ulang. Pembacaan nilai memeriksa metadata kolom/key lalu menjalankan SELECT berparameter dalam transaksi READ ONLY yang diakhiri ROLLBACK. Identitas key tidak menjanjikan snapshot data atau mendeteksi record yang dihapus lalu dibuat ulang dengan key yang sama.
+
+`navilite_cell_read` mengembalikan frame little endian NVLC dengan header 24 byte: magic `NVLC` (offset 0), versi u32 = 1 (4), flags u32 (8), reserved u32 = 0 (12), dan panjang asli nilai dalam byte u64 (16). Flags 0 = NULL, 1 = teks UTF-8, 2 = biner, dengan bit 7 untuk nilai terpotong. Payload mengikuti header dan dibatasi 1 MiB; panjang asli teks dihitung sesudah konversi UTF-8. Error tetap memakai JSON UTF-8 sepanjang `FfiBuffer.length`. Semua hasil dilepas memakai `navilite_buffer_free`.
+
 ## Versioning dan alur development
 
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.3.0
+./scripts/Set-Version.ps1 -Version 0.4.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.3.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.4.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

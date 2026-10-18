@@ -235,6 +235,7 @@
                             <DockPanel Margin="8">
                                 <TextBlock DockPanel.Dock="Bottom" Text="{Binding PageSummary}" TextWrapping="Wrap" Foreground="#75849A" FontSize="11" Margin="4,12,4,4" />
                                 <DataGrid x:Name="PreviewGrid" ItemsSource="{Binding Page.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                          PreviewKeyDown="PreviewGrid_KeyDown" MouseDoubleClick="PreviewGrid_MouseDoubleClick" ToolTip="Double-click a cell or press F2 to inspect its value."
                                           CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" CanUserReorderColumns="True" Sorting="PreviewGrid_Sorting"
                                           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                           ScrollViewer.CanContentScroll="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="29"
@@ -272,6 +273,7 @@
                                                             <TextBlock Text="{Binding SqlType}" Foreground="#8090A7" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0" />
                                                             <TextBlock Text="NULL" Foreground="#8090A7" FontStyle="Italic" Visibility="{Binding IsNull, Converter={StaticResource BoolVisibility}}" FontSize="10" Margin="0,4,0,0" />
                                                             <TextBlock Text="Binary preview" Foreground="#8090A7" Visibility="{Binding IsBinary, Converter={StaticResource BoolVisibility}}" FontSize="10" Margin="0,4,0,0" />
+                                                            <Button Content="Inspect…" Click="InspectFormField_Click" Padding="8,4" Margin="0,8,0,0" HorizontalAlignment="Left" />
                                                         </StackPanel>
                                                         <StackPanel Grid.Column="2">
                                                             <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" BorderThickness="0" Background="#F8FAFD" Padding="8" MaxHeight="210" VerticalScrollBarVisibility="Auto" />

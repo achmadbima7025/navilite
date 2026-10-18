@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using NaviLite.Desktop.ViewModels;
 using NaviLite.Desktop.Models;
@@ -20,6 +21,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _viewModel;
+        _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.Page)) RebuildGridColumns();
@@ -67,6 +69,33 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         await _viewModel.SortByAsync(e.Column.SortMemberPath);
+    }
+
+    private async void PreviewGrid_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2 && PreviewGrid.CurrentCell.Item is NativeRow row && PreviewGrid.CurrentCell.Column is { } column)
+        {
+            e.Handled = true;
+            await _viewModel.InspectCellAsync(row, column.SortMemberPath);
+        }
+    }
+
+    private async void PreviewGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        while (source is not null && source is not DataGridCell)
+            source = source is Visual ? VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
+        if (source is DataGridCell { DataContext: NativeRow row } cell)
+        {
+            e.Handled = true;
+            await _viewModel.InspectCellAsync(row, cell.Column.SortMemberPath);
+        }
+    }
+
+    private async void InspectFormField_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: FormField field } && _viewModel.SelectedRecord is { } row)
+            await _viewModel.InspectCellAsync(row, field.Name);
     }
 
     private async void Schema_Expanded(object sender, RoutedEventArgs e)

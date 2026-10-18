@@ -1,7 +1,7 @@
 //! Every returned UTF-8 JSON allocation belongs to Rust and must be freed exactly once.
 
 use crate::{
-    connection,
+    cell_value, connection,
     page_options::PageOptions,
     profiles::{self, ConnectionProfile},
     schema, table_page,
@@ -24,6 +24,12 @@ pub struct FfiBuffer {
     pub code: i32,
     pub data: *mut u8,
     pub length: usize,
+}
+
+#[repr(C)]
+pub struct FfiPage {
+    pub buffer: FfiBuffer,
+    pub page_id: u64,
 }
 
 fn buffer_boundary(operation: impl FnOnce() -> Result<Vec<u8>, String>) -> FfiBuffer {
@@ -228,6 +234,50 @@ pub unsafe extern "C" fn navilite_table_page_query(
             options,
         )
     })
+}
+
+/// Opens an NVLR v1 page and retains bounded primary-key values for cell inspection.
+/// Release the page ID with navilite_page_release and its buffer with navilite_buffer_free.
+/// # Safety
+/// Database, table, and options must be valid NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_table_page_open(
+    handle: u64,
+    database: *const c_char,
+    table: *const c_char,
+    offset: u64,
+    page_size: u32,
+    options: *const c_char,
+) -> FfiPage {
+    let mut page_id = 0;
+    let buffer = buffer_boundary(|| {
+        let options: PageOptions = serde_json::from_str(text(options)?)
+            .map_err(|e| format!("Invalid data filter or sort options: {e}"))?;
+        let (frame, id) = table_page::open(
+            handle,
+            text(database)?,
+            text(table)?,
+            offset,
+            page_size,
+            options,
+        )?;
+        page_id = id;
+        Ok(frame)
+    });
+    FfiPage { buffer, page_id }
+}
+
+/// Releases a retained page identity. Zero, expired, and already released IDs are accepted.
+#[no_mangle]
+pub extern "C" fn navilite_page_release(page_id: u64) {
+    cell_value::release(page_id);
+}
+
+/// Reads the current cell by the retained row primary key, capped at 1 MiB, as NVLC v1.
+/// The returned allocation must be released with navilite_buffer_free.
+#[no_mangle]
+pub extern "C" fn navilite_cell_read(page_id: u64, row: u32, column: u32) -> FfiBuffer {
+    buffer_boundary(|| cell_value::read(page_id, row, column))
 }
 
 /// Releases a binary or error buffer, using its original pointer and length. Null is accepted.

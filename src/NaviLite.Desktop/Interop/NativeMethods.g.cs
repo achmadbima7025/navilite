@@ -95,6 +95,28 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiBuffer navilite_table_page_query(ulong handle, byte* database, byte* table, ulong offset, uint page_size, byte* options);
 
         /// <summary>
+        ///  Opens an NVLR v1 page and retains bounded primary-key values for cell inspection.
+        ///  Release the page ID with navilite_page_release and its buffer with navilite_buffer_free.
+        ///  # Safety
+        ///  Database, table, and options must be valid NUL-terminated UTF-8 strings for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_table_page_open", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiPage navilite_table_page_open(ulong handle, byte* database, byte* table, ulong offset, uint page_size, byte* options);
+
+        /// <summary>
+        ///  Releases a retained page identity. Zero, expired, and already released IDs are accepted.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_page_release", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern void navilite_page_release(ulong page_id);
+
+        /// <summary>
+        ///  Reads the current cell by the retained row primary key, capped at 1 MiB, as NVLC v1.
+        ///  The returned allocation must be released with navilite_buffer_free.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_cell_read", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiBuffer navilite_cell_read(ulong page_id, uint row, uint column);
+
+        /// <summary>
         ///  Releases a binary or error buffer, using its original pointer and length. Null is accepted.
         ///  # Safety
         ///  Data and length must identify an unfreed allocation returned in FfiBuffer by this library.
@@ -126,6 +148,13 @@ namespace NaviLite.Desktop.Interop
         public int code;
         public byte* data;
         public nuint length;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct FfiPage
+    {
+        public FfiBuffer buffer;
+        public ulong page_id;
     }
 
 

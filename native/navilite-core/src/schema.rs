@@ -10,6 +10,7 @@ pub struct SchemaObject {
     pub detail: String,
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct Column {
     pub name: String,
     pub sql_type: String,

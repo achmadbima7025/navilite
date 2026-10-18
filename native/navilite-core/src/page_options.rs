@@ -54,7 +54,10 @@ fn column<'a>(columns: &'a [Column], name: &str) -> Result<&'a Column, String> {
         })
 }
 
-fn comparison_parameter(column: &Column, input: &str) -> Result<(String, Value), String> {
+pub(crate) fn comparison_parameter(
+    column: &Column,
+    input: &str,
+) -> Result<(String, Value), String> {
     let sql_type = column.sql_type.to_ascii_lowercase();
     let base = sql_type.split(['(', ' ']).next().unwrap_or("");
     let number = input.trim();

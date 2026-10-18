@@ -24,6 +24,8 @@ public sealed unsafe partial class NativeCore
     {
         byte[] databaseBytes = Utf8(database), tableBytes = Utf8(table), options = Utf8(JsonSerializer.Serialize(query ?? new(), JsonOptions));
         fixed (byte* db = databaseBytes, name = tableBytes, queryOptions = options)
-            return new NativePage(NativeMethods.navilite_table_page_query(handle, db, name, offset, pageSize, queryOptions));
+            return new NativePage(NativeMethods.navilite_table_page_open(handle, db, name, offset, pageSize, queryOptions));
     });
+
+    public Task<CellValue> ReadCellAsync(NativePage page, int row, int column) => Task.Run(() => page.ReadValue(row, column));
 }

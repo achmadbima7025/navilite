@@ -4,6 +4,24 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-18
+
+### Added
+
+- Read-only cell inspection from grid double-click/F2 or Form View, with text, JSON formatting, and virtualized hexadecimal/ASCII views.
+- Primary-key identities retained alongside native data pages, supporting bounded on-demand cell reads without locating records by changing page offsets.
+- Server-side 1 MiB cell projection, UTF-8 boundary handling, original/loaded byte counts, and explicit partial-value or preview-only explanations.
+- Clipboard copying and saving loaded binary bytes or UTF-8 text without modifying database values.
+- Additive page-lease and cell-read FFI APIs with NVLC v1 value frames; existing ABI 1, page APIs, and NVLR v1 remain available.
+
+### Fixed
+
+- Prioritize the project's existing local .NET/Rust installations in the activation script when another system installation appears earlier in PATH.
+
+### Scope
+
+- Inspection is read only and bounded at 1 MiB. Missing, oversized, or unsupported primary keys (including BIT, TIMESTAMP, ENUM, and SET) and stale records fall back to the current page preview. JSON formatting supports complete text up to 256 KiB and depth 64. Editing, larger-value streaming, JSON tree/image/date editors, user SQL execution, SSH, and transfers remain pending.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added

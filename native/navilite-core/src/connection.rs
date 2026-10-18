@@ -157,6 +157,7 @@ pub fn open(
 }
 
 pub fn close(handle: u64) -> Result<(), String> {
+    crate::cell_value::release_session(handle);
     let session = sessions()
         .lock()
         .map_err(|_| "Session registry is unavailable.")?

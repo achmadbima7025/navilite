@@ -1,5 +1,10 @@
 //! NVLR v1: a bounded little-endian frame; see README for the wire layout.
-use crate::{connection, page_options::PageOptions, schema};
+use crate::{
+    cell_value::{self, PageContext},
+    connection,
+    page_options::PageOptions,
+    schema,
+};
 use mysql_async::{prelude::Queryable, Params, Row, Value};
 
 const MAX_FRAME: usize = 8 * 1024 * 1024;
@@ -17,7 +22,7 @@ fn string(frame: &mut Vec<u8>, value: &str) {
     frame.extend_from_slice(value.as_bytes());
 }
 
-fn length(value: &Value) -> Result<u64, String> {
+pub(crate) fn length(value: &Value) -> Result<u64, String> {
     match value {
         Value::UInt(value) => Ok(*value),
         Value::Int(value) if *value >= 0 => Ok(*value as u64),
@@ -29,8 +34,11 @@ fn length(value: &Value) -> Result<u64, String> {
     }
 }
 
-fn encode_row(row: Row, columns: &[schema::Column], frame: &mut Vec<u8>) -> Result<u32, String> {
-    let values = row.unwrap();
+fn encode_row(
+    values: &[Value],
+    columns: &[schema::Column],
+    frame: &mut Vec<u8>,
+) -> Result<u32, String> {
     if values.len() != columns.len() * 2 {
         return Err("The table schema changed during preview. Refresh and open it again.".into());
     }
@@ -92,6 +100,33 @@ pub fn read_with_options(
     requested: u32,
     options: PageOptions,
 ) -> Result<Vec<u8>, String> {
+    read_internal(handle, database, table, offset, requested, options, false)
+        .map(|(frame, _)| frame)
+}
+
+pub fn open(
+    handle: u64,
+    database: &str,
+    table: &str,
+    offset: u64,
+    requested: u32,
+    options: PageOptions,
+) -> Result<(Vec<u8>, u64), String> {
+    let (frame, context) =
+        read_internal(handle, database, table, offset, requested, options, true)?;
+    let id = cell_value::register(context.ok_or("The data page has no context.")?)?;
+    Ok((frame, id))
+}
+
+fn read_internal(
+    handle: u64,
+    database: &str,
+    table: &str,
+    offset: u64,
+    requested: u32,
+    options: PageOptions,
+    capture_keys: bool,
+) -> Result<(Vec<u8>, Option<PageContext>), String> {
     if !(1..=1000).contains(&requested) {
         return Err("Page size must be between 1 and 1000 rows.".into());
     }
@@ -104,6 +139,13 @@ pub fn read_with_options(
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
         let columns = schema::columns(&mut conn, database, table).await?;
+        let mut keys: Vec<_> = columns
+            .iter()
+            .filter(|column| capture_keys && column.primary_key)
+            .collect();
+        if keys.iter().any(|column| !cell_value::supported_key(column)) {
+            keys.clear();
+        }
         let row_ceiling: usize = columns
             .iter()
             .map(|c| {
@@ -113,10 +155,11 @@ pub fn read_with_options(
                     TEXT_CHARACTERS * 4 + 64
                 }
             })
-            .sum();
+            .sum::<usize>()
+            + keys.len() * (4096 + 64);
         // Reserve space for the lookahead row too. Projection bounds data at the server.
         let limit = (requested as usize).min((WIRE_BUDGET / row_ceiling).saturating_sub(1).max(1));
-        let projection = columns.iter().map(|column| {
+        let mut projection = columns.iter().map(|column| {
             let name = schema::identifier(&column.name)?;
             Ok(if column.binary {
                 format!("LEFT({name}, {BINARY_BYTES}), OCTET_LENGTH({name})")
@@ -124,6 +167,17 @@ pub fn read_with_options(
                 format!("LEFT(CAST({name} AS CHAR CHARACTER SET utf8mb4), {TEXT_CHARACTERS}), CHAR_LENGTH(CAST({name} AS CHAR CHARACTER SET utf8mb4))")
             })
         }).collect::<Result<Vec<_>, String>>()?.join(", ");
+        for key in &keys {
+            let name = schema::identifier(&key.name)?;
+            let measured = if key.binary {
+                name.clone()
+            } else {
+                format!("CAST({name} AS CHAR CHARACTER SET utf8mb4)")
+            };
+            projection.push_str(&format!(
+                ", CASE WHEN OCTET_LENGTH({measured}) <= 4096 THEN {name} ELSE NULL END"
+            ));
+        }
         let (clauses, parameters, stable_order) = options.clauses(&columns)?;
         let sql = format!(
             "SELECT {projection} FROM {qualified}{clauses} LIMIT {offset}, {}",
@@ -158,11 +212,40 @@ pub fn read_with_options(
         let count = rows.len();
         frame.resize(directory + (count + 1) * 4, 0);
         let mut truncated = 0u32;
+        let mut identities = Vec::with_capacity(count);
         for (index, row) in rows.into_iter().enumerate() {
             let position = frame.len();
             frame[directory + index * 4..directory + index * 4 + 4]
                 .copy_from_slice(&u32_bytes(position));
-            truncated += encode_row(row, &columns, &mut frame)?;
+            let mut values = row.unwrap();
+            if values.len() != columns.len() * 2 + keys.len() {
+                return Err(
+                    "The table schema changed during preview. Refresh and open it again.".into(),
+                );
+            }
+            if capture_keys {
+                let identity = values.split_off(columns.len() * 2);
+                let bytes: usize = identity
+                    .iter()
+                    .map(|value| match value {
+                        Value::Bytes(bytes) => bytes.len(),
+                        _ => 64,
+                    })
+                    .sum();
+                let usable = !identity.is_empty()
+                    && bytes <= 16 * 1024
+                    && identity.iter().all(|value| match value {
+                        Value::NULL => false,
+                        Value::Bytes(bytes) => bytes.len() <= 4096,
+                        _ => true,
+                    })
+                    && keys
+                        .iter()
+                        .zip(&identity)
+                        .all(|(key, value)| !key.binary || matches!(value, Value::Bytes(_)));
+                identities.push(if usable { Some(identity) } else { None });
+            }
+            truncated += encode_row(&values, &columns, &mut frame)?;
             if frame.len() > MAX_FRAME {
                 return Err("The data page exceeds the 8 MiB preview limit.".into());
             }
@@ -173,6 +256,13 @@ pub fn read_with_options(
         if frame.len() > MAX_FRAME {
             return Err("The data page exceeds the 8 MiB preview limit.".into());
         }
-        Ok(frame)
+        let context = capture_keys.then(|| PageContext {
+            handle,
+            database: database.into(),
+            table: table.into(),
+            columns,
+            keys: identities,
+        });
+        Ok((frame, context))
     })
 }

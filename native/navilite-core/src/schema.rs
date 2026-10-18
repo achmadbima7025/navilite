@@ -10,6 +10,22 @@ pub struct SchemaObject {
     pub detail: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectDefinition {
+    pub database: String,
+    pub name: String,
+    pub kind: String,
+    pub sql: String,
+    pub properties: Vec<DefinitionProperty>,
+}
+
+#[derive(Serialize)]
+pub struct DefinitionProperty {
+    pub name: String,
+    pub value: Option<String>,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Column {
     pub name: String,
@@ -126,25 +142,100 @@ pub async fn columns(
 }
 
 pub fn ddl(handle: u64, database: &str, table: &str) -> Result<String, String> {
-    let sql = format!(
-        "SHOW CREATE TABLE {}.{}",
-        identifier(database)?,
-        identifier(table)?
-    );
+    definition(handle, database, table, "table").map(|definition| definition.sql)
+}
+
+pub fn definition(
+    handle: u64,
+    database: &str,
+    name: &str,
+    kind: &str,
+) -> Result<ObjectDefinition, String> {
+    const MAX_DEFINITION_BYTES: usize = 4 * 1024 * 1024;
+    let quoted_database = identifier(database)?;
+    let quoted_name = identifier(name)?;
+    let (keyword, body_columns): (&str, &[&str]) = match kind {
+        "database" if name == database => ("DATABASE", &["Create Database"]),
+        "table" => ("TABLE", &["Create Table", "Create View"]),
+        "view" => ("VIEW", &["Create View"]),
+        "procedure" => ("PROCEDURE", &["Create Procedure"]),
+        "function" => ("FUNCTION", &["Create Function"]),
+        "trigger" => ("TRIGGER", &["SQL Original Statement"]),
+        "event" => ("EVENT", &["Create Event"]),
+        _ => return Err("Unsupported object kind or mismatched database name.".into()),
+    };
+    let target = if kind == "database" {
+        quoted_database
+    } else {
+        format!("{quoted_database}.{quoted_name}")
+    };
+    let sql = format!("SHOW CREATE {keyword} {target}");
+    let context = if kind == "database" {
+        database.to_owned()
+    } else {
+        format!("{database}.{name}")
+    };
     let pool = connection::metadata_pool(handle)?;
     connection::run(async {
         let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
         let row: Row = history::query(
             handle,
             "Object definition",
-            &format!("{database}.{table}"),
+            &context,
             &sql,
             conn.query_first(&sql),
         )
         .await?
         .ok_or("The server returned no object definition.")?;
-        row.get_opt::<String, _>(1)
-            .ok_or("The object definition is missing.")?
-            .map_err(|_| "The server returned an invalid object definition.".into())
+        // SHOW CREATE result layouts differ by object kind. A routine can also
+        // expose its name and SQL mode while withholding its definition as NULL.
+        let body_index = row
+            .columns_ref()
+            .iter()
+            .position(|column| {
+                body_columns
+                    .iter()
+                    .any(|name| column.name_str().eq_ignore_ascii_case(name))
+            })
+            .ok_or("The server returned no CREATE statement column.")?;
+        let sql = definition_value(&row, body_index)?.ok_or(
+            "The server withheld the object definition. This account may need additional SHOW CREATE privileges.",
+        )?;
+        let mut bytes = sql.len();
+        if sql.trim().is_empty() || bytes > MAX_DEFINITION_BYTES {
+            return Err(
+                "The object definition is empty or exceeds the 4 MiB display limit.".into(),
+            );
+        }
+        let mut properties = Vec::new();
+        for (index, column) in row.columns_ref().iter().enumerate() {
+            if index == body_index {
+                continue;
+            }
+            let name = column.name_str().into_owned();
+            let value = definition_value(&row, index)?;
+            bytes = bytes
+                .saturating_add(name.len())
+                .saturating_add(value.as_ref().map_or(0, String::len));
+            if bytes > MAX_DEFINITION_BYTES {
+                return Err(
+                    "The object definition and metadata exceed the 4 MiB display limit.".into(),
+                );
+            }
+            properties.push(DefinitionProperty { name, value });
+        }
+        Ok(ObjectDefinition {
+            database: database.into(),
+            name: name.into(),
+            kind: kind.into(),
+            sql,
+            properties,
+        })
     })
+}
+
+fn definition_value(row: &Row, index: usize) -> Result<Option<String>, String> {
+    row.get_opt::<Option<String>, _>(index)
+        .ok_or("The server returned incomplete definition metadata.")?
+        .map_err(|_| "The server returned invalid UTF-8 definition metadata.".into())
 }

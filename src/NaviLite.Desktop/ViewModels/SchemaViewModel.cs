@@ -18,6 +18,7 @@ public sealed partial class MainViewModel
     public AsyncCommand NextPageCommand { get; }
     public AsyncCommand PreviousPageCommand { get; }
     public AsyncCommand ReloadPageCommand { get; }
+    public AsyncCommand RefreshBranchCommand { get; }
     public bool CanBrowse => IsConnected && !IsBusy;
     public int SelectedWorkspaceTab { get => _selectedWorkspaceTab; set => Set(ref _selectedWorkspaceTab, value); }
     public SchemaNode? SelectedNode
@@ -58,21 +59,32 @@ public sealed partial class MainViewModel
     public Task ExpandNodeAsync(SchemaNode node)
     {
         if (!CanBrowse || !node.IsCategory || node.IsLoaded) return Task.CompletedTask;
-        return RunAsync(async () =>
-        {
-            Status = $"Loading {node.Database} / {node.Name}...";
-            var objects = await _core.ListObjectsAsync(_handle, node);
-            node.Load(objects);
-            ApplyFilter();
-            Status = $"Loaded {objects.Count} {node.Name.ToLowerInvariant()} in {node.Database}.";
-            Log(Status);
-        });
+        return RunAsync(() => LoadBranchAsync(node));
+    }
+
+    private Task RefreshBranchAsync()
+    {
+        var node = SelectedNode;
+        if (!CanBrowse || node?.IsCategory != true) return Task.CompletedTask;
+        return RunAsync(() => LoadBranchAsync(node));
+    }
+
+    private async Task LoadBranchAsync(SchemaNode node)
+    {
+        Status = $"Loading {node.Database} / {node.Name}...";
+        var objects = await _core.ListObjectsAsync(_handle, node);
+        node.Load(objects);
+        ApplyFilter();
+        node.IsExpanded = true;
+        Status = $"Loaded {objects.Count} {node.Name.ToLowerInvariant()} in {node.Database}.";
+        Log(Status);
     }
 
     public Task OpenSelectedAsync()
     {
         var node = SelectedNode;
-        if (!CanBrowse || node?.CanOpen != true) return Task.CompletedTask;
+        if (!CanBrowse || node?.CanInspectDefinition != true) return Task.CompletedTask;
+        if (!node.CanOpen) return RunAsync(() => LoadDefinitionAsync(node.Database, node.Name, node.Kind));
         return RunAsync(async () =>
         {
             Status = $"Loading {node.Database}.{node.Name}...";
@@ -124,6 +136,7 @@ public sealed partial class MainViewModel
 
     private void ClearPreview()
     {
+        Definition = null;
         _pageHistory.Clear();
         ResetQueryState();
         Page = null;

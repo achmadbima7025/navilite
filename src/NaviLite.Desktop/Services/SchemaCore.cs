@@ -20,6 +20,13 @@ public sealed unsafe partial class NativeCore
             return Read<string>(NativeMethods.navilite_object_ddl(handle, db, name));
     });
 
+    public Task<ObjectDefinition> ReadDefinitionAsync(ulong handle, string database, string name, string kind) => Task.Run(() =>
+    {
+        byte[] databaseBytes = Utf8(database), nameBytes = Utf8(name), kindBytes = Utf8(kind);
+        fixed (byte* db = databaseBytes, objectName = nameBytes, objectKind = kindBytes)
+            return Read<ObjectDefinition>(NativeMethods.navilite_object_definition(handle, db, objectName, objectKind));
+    });
+
     public Task<NativePage> ReadPageAsync(ulong handle, string database, string table, ulong offset, PageQuery? query = null, uint pageSize = 1000) => Task.Run(() =>
     {
         byte[] databaseBytes = Utf8(database), tableBytes = Utf8(table), options = Utf8(JsonSerializer.Serialize(query ?? new(), JsonOptions));

@@ -91,6 +91,14 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiResult navilite_object_ddl(ulong handle, byte* database, byte* table);
 
         /// <summary>
+        ///  Reads an existing database, table, view, routine, trigger, or event definition and metadata.
+        ///  # Safety
+        ///  Database, name, and kind must be valid NUL-terminated UTF-8 strings for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_object_definition", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_object_definition(ulong handle, byte* database, byte* name, byte* kind);
+
+        /// <summary>
         ///  Reads a bounded NVLR v1 page. Its allocation must be released with navilite_buffer_free.
         ///  # Safety
         ///  Database and table must be valid NUL-terminated UTF-8 strings for this call.

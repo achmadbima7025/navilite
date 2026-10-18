@@ -32,7 +32,11 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         ConnectCommand = new(() => RunAsync(ConnectAsync), () => CanEdit);
         DisconnectCommand = new(() => RunAsync(DisconnectAsync), () => !IsBusy && IsConnected);
         RefreshCommand = new(() => RunAsync(RefreshDatabasesAsync), () => !IsBusy && IsConnected);
-        OpenTableCommand = new(OpenSelectedAsync, () => CanBrowse && SelectedNode?.CanOpen == true);
+        OpenTableCommand = new(OpenSelectedAsync, () => CanBrowse && SelectedNode?.CanInspectDefinition == true);
+        InspectDefinitionCommand = new(InspectSelectedDefinitionAsync, () => CanBrowse && SelectedNode?.CanInspectDefinition == true);
+        ReloadDefinitionCommand = new(ReloadDefinitionAsync, () => CanBrowse && Definition is not null);
+        CopyDefinitionCommand = new(CopyDefinitionAsync, () => CanExportDefinition);
+        RefreshBranchCommand = new(RefreshBranchAsync, () => CanBrowse && SelectedNode?.IsCategory == true);
         NextPageCommand = new(() => RunAsync(NextPageAsync), () => CanBrowse && Page?.HasMore == true);
         PreviousPageCommand = new(() => RunAsync(PreviousPageAsync), () => CanBrowse && _pageHistory.Count > 0);
         ReloadPageCommand = new(() => RunAsync(ReloadPageAsync), () => CanBrowse && Page is not null);
@@ -45,7 +49,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         ClearHistoryCommand = new(() => RunAsync(ClearHistoryAsync), () => CanBrowse);
         AddFilterCommand = new(AddFilterAsync, () => CanQuery && DraftFilters.Count < 16);
         AddSortCommand = new(AddSortAsync, () => CanQuery && DraftSorts.Count < 8);
-        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand];
+        _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand, InspectDefinitionCommand, ReloadDefinitionCommand, CopyDefinitionCommand, RefreshBranchCommand];
         ResetQueryState();
     }
 
@@ -185,6 +189,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Status = $"Connecting to {profile.Name}...";
         var info = await _core.OpenConnectionAsync(profile, _password);
         _handle = info.Handle;
+        Definition = null;
         ResetHistory();
         ClearPassword();
         ServerSummary = $"{info.ServerVersion} · session {info.ConnectionId} · {(info.Tls ? "TLS verified" : "TCP")} · {info.LatencyMs} ms";
@@ -247,6 +252,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Changed(nameof(CanEdit));
         Changed(nameof(CanBrowse));
         Changed(nameof(CanQuery));
+        Changed(nameof(CanExportDefinition));
         RefreshCommands();
     }
 

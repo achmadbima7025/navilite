@@ -19,6 +19,7 @@ public sealed class SchemaNode(string name, string kind, string database, string
     public string Icon => Kind switch { "database" => "▤", "table" => "▦", "view" => "◈", "column" => "·", "index" => "⚿", "foreignKey" => "↗", _ => "▸" };
     public bool IsCategory => Kind is "tables" or "views" or "procedures" or "functions" or "triggers" or "events" or "columns" or "indexes" or "foreignKeys";
     public bool CanOpen => Kind is "table" or "view";
+    public bool CanInspectDefinition => Kind is "database" or "table" or "view" or "procedure" or "function" or "trigger" or "event";
     public bool IsLoaded { get; private set; }
     public bool IsExpanded
     {

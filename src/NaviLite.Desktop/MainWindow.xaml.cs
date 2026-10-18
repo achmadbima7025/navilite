@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -24,6 +25,7 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
         _viewModel.RowsCopyRequested += text => Clipboard.SetText(text);
+        _viewModel.DefinitionCopyRequested += text => Clipboard.SetText(text);
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.Page)) RebuildGridColumns();
@@ -137,11 +139,28 @@ public partial class MainWindow : Window
 
     private async void Schema_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (_viewModel.SelectedNode?.CanOpen == true)
+        if (_viewModel.SelectedNode is { CanInspectDefinition: true, Kind: not "database" })
         {
             e.Handled = true;
             await _viewModel.OpenSelectedAsync();
         }
+    }
+
+    private async void SaveDefinition_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_viewModel.CanExportDefinition || _viewModel.Definition is not { } definition) return;
+        string stem = string.Concat($"{definition.Database}_{definition.Name}".EnumerateRunes().Take(80));
+        foreach (char invalid in Path.GetInvalidFileNameChars()) stem = stem.Replace(invalid, '_');
+        var dialog = new SaveFileDialog
+        {
+            Title = $"Save definition of {definition.Database}.{definition.Name}",
+            Filter = "SQL files (*.sql)|*.sql|All files (*.*)|*.*",
+            DefaultExt = ".sql",
+            FileName = $"definition_{stem}.sql",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(this) == true) await _viewModel.SaveDefinitionAsync(dialog.FileName, definition);
     }
 
     private void Password_Changed(object sender, RoutedEventArgs e)

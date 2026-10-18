@@ -211,6 +211,27 @@ pub unsafe extern "C" fn navilite_object_ddl(
     boundary(|| Ok(json!(schema::ddl(handle, text(database)?, text(table)?)?)))
 }
 
+/// Reads an existing database, table, view, routine, trigger, or event definition and metadata.
+/// # Safety
+/// Database, name, and kind must be valid NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_object_definition(
+    handle: u64,
+    database: *const c_char,
+    name: *const c_char,
+    kind: *const c_char,
+) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(schema::definition(
+            handle,
+            text(database)?,
+            text(name)?,
+            text(kind)?,
+        )?)
+        .map_err(|error| error.to_string())
+    })
+}
+
 /// Reads a bounded NVLR v1 page. Its allocation must be released with navilite_buffer_free.
 /// # Safety
 /// Database and table must be valid NUL-terminated UTF-8 strings for this call.

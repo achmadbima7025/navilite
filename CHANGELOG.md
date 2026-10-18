@@ -4,6 +4,19 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-18
+
+### Added
+
+- Read-only Object definition workspace for databases, tables, views, procedures, functions, triggers, and events, with server-returned SQL mode, character set, collation, and other available metadata.
+- Fixed-kind, quoted-identifier SHOW CREATE queries and an additive `navilite_object_definition` JSON API. Definition columns are resolved by name, with explicit handling for permission-hidden NULL routine bodies.
+- Definition refresh independent of navigator selection and data pages, clipboard copying, and explicit UTF-8 SQL file saving without a BOM. Failed reads retain the previous definition; disconnect clears it.
+- Targeted reload of a selected navigator category, replacing that branch only after metadata retrieval succeeds and leaving the active data page intact.
+
+### Scope
+
+- Definitions and metadata have a combined 4 MiB display limit checked after the server response is received; oversized SQL is rejected rather than truncated. Saved files contain the original CREATE text, not a migration script with session settings or client delimiter directives. No definitions are executed or edited, and SQL history records only SHOW CREATE queries, never their result bodies.
+
 ## [0.6.0] - 2026-10-18
 
 ### Added

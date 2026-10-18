@@ -101,6 +101,10 @@
                     <StackPanel Grid.Row="3" Margin="0,0,0,10">
                         <TextBlock Text="Filter loaded objects" Foreground="#8090A7" FontSize="10" Margin="2,0,0,5" />
                         <TextBox Text="{Binding ObjectFilter, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanBrowse}" ToolTip="Filter loaded object names; unopened branches stay available" AutomationProperties.Name="Filter loaded objects" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Content="Definition" Command="{Binding InspectDefinitionCommand}" Padding="9,5" ToolTip="Inspect the selected database or object without reading its data" />
+                            <Button Content="Reload branch" Command="{Binding RefreshBranchCommand}" Padding="9,5" Margin="0" ToolTip="Select an object category to reload only that branch" />
+                        </WrapPanel>
                     </StackPanel>
                     <TreeView x:Name="SchemaTree" Grid.Row="4" ItemsSource="{Binding Databases}" BorderThickness="0" Background="Transparent"
                               IsEnabled="{Binding CanBrowse}" TreeViewItem.Expanded="Schema_Expanded" SelectedItemChanged="Schema_SelectedItemChanged"
@@ -348,6 +352,28 @@
                     <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" Background="#DCE3EF" />
                     <TextBox Grid.Row="4" Text="{Binding HistoryStatement, Mode=OneWay}" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="12"
                              AcceptsReturn="True" TextWrapping="NoWrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+                </Grid>
+              </TabItem>
+              <TabItem Header="Object definition">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="130" /><RowDefinition Height="8" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <TextBlock Text="{Binding DefinitionTitle}" FontSize="23" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding DefinitionTitle}" Margin="0,0,0,8" />
+                    <TextBlock Grid.Row="1" Text="{Binding DefinitionSummary}" Foreground="#75849A" TextWrapping="Wrap" Margin="0,0,0,12" />
+                    <WrapPanel Grid.Row="2" Margin="0,0,0,12">
+                        <Button Content="Refresh definition" Command="{Binding ReloadDefinitionCommand}" />
+                        <Button Content="Copy SQL" Command="{Binding CopyDefinitionCommand}" />
+                        <Button Content="Save SQL…" Click="SaveDefinition_Click" IsEnabled="{Binding CanExportDefinition}" Margin="0" />
+                    </WrapPanel>
+                    <DataGrid Grid.Row="3" ItemsSource="{Binding Definition.Properties}" AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single" HeadersVisibility="Column" BorderBrush="#E0E6F0" AutomationProperties.Name="Object definition metadata">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Property" Binding="{Binding Name}" Width="200" />
+                            <DataGridTextColumn Header="Value" Binding="{Binding ValueText}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <GridSplitter Grid.Row="4" Height="5" HorizontalAlignment="Stretch" Background="#DCE3EF" />
+                    <TextBox Grid.Row="5" Text="{Binding DefinitionSql, Mode=OneWay}" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="13"
+                             AcceptsReturn="True" TextWrapping="NoWrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="Read-only object CREATE statement" />
                 </Grid>
               </TabItem>
             </TabControl>

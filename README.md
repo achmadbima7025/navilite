@@ -104,6 +104,14 @@ Inkrement 0.6.0 menambahkan filter gabungan dan urutan beberapa kolom:
 - Header grid menunjukkan arah dan nomor prioritas sort yang aktif. Klik header menerapkan satu kolom sort, mengganti daftar sort eksplisit sebelumnya, dengan siklus ASC → DESC → default; filter aktif tetap dipakai dan draft filter yang belum diterapkan tetap ditandai. Gunakan kontrol Order by untuk urutan beberapa kolom.
 - Native tetap memakai placeholder untuk seluruh nilai filter, memeriksa metadata kolom terbaru, serta mempertahankan perbandingan angka presisi tinggi, kondisi NULL, dan pencarian teks literal. Riwayat SQL tidak menyimpan nilai parameter. Bentuk JSON tunggal `filter`/`sort` tetap diterima.
 
+Inkrement 0.7.0 menambahkan inspeksi definisi objek dan refresh cabang navigator:
+
+- Pilih database, tabel, view, procedure, function, trigger, atau event lalu klik Definition di navigator. Tab Object definition menampilkan CREATE statement asli dan properti yang dikembalikan server, seperti SQL mode, character set, collation, atau zona waktu. Klik ganda procedure/function/trigger/event langsung membuka definisinya; klik ganda database tetap memperluas pohon dan tabel/view tetap membuka data.
+- Refresh definition membaca ulang objek yang sedang ditampilkan, meskipun pilihan navigator sudah berpindah. Pembacaan definisi tidak mengganti halaman data, filter, atau sort. Jika server menolak akses atau menyembunyikan definisi sebagai NULL, pesan ditampilkan dan definisi sebelumnya tetap tersedia. Disconnect menghapus definisi dari workspace.
+- Copy SQL menyalin CREATE statement lengkap. Save SQL menyimpan teks yang sama sebagai UTF-8 tanpa BOM ke lokasi yang dipilih pengguna. Teks berisi NUL harus disimpan ke berkas. Berkas merupakan definisi asli; pengaturan sesi, delimiter klien untuk rutin, dependensi, dan langkah migrasi tidak ditambahkan. Aplikasi tidak menjalankan SQL tersebut.
+- Batas tampilan gabungan SQL dan metadata adalah 4 MiB, diperiksa setelah respons server diterima. Definisi yang melampaui batas ditolak tanpa dipotong. Riwayat SQL hanya mencatat perintah SHOW CREATE beserta identifier; isi definisi tidak disimpan di riwayat atau activity log.
+- Pilih kategori Tables, Views, Procedures, Functions, Triggers, Events, Columns, Indexes, atau Foreign keys lalu Reload branch untuk mengambil ulang kategori itu. Hasil baru mengganti cabang setelah pembacaan berhasil; cabang lain dan data aktif tetap tersedia. Refresh databases tetap memuat ulang seluruh pohon database.
+
 SSH tunnel, sertifikat klien TLS, socket transport, impor/ekspor koneksi, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, ekspresi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, salinan SQL INSERT/UPDATE, editor SQL, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
 
 ## Build dan jalankan
@@ -159,6 +167,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_history_clear` | Handle sesi; menghapus riwayat native dalam memori, tanpa menjalankan SQL |
 | `navilite_schema_objects` | Handle, database, tabel opsional, kategori; daftar metadata objek |
 | `navilite_object_ddl` | Handle, database, objek; string CREATE TABLE/VIEW |
+| `navilite_object_definition` | Handle, database, nama, jenis objek; JSON database/name/kind/sql/properties dengan properti name/value (nullable) |
 | `navilite_table_page` | Handle, database, objek, offset, page size; `FfiBuffer` berisi frame NVLR |
 | `navilite_table_page_query` | Input halaman ditambah JSON filter/sort; `FfiBuffer` dengan format NVLR yang sama |
 | `navilite_table_page_open` | Input halaman/query; `FfiPage { buffer: FfiBuffer, page_id: u64 }` dengan identitas primary key yang ditahan Rust |
@@ -208,10 +217,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.6.0
+./scripts/Set-Version.ps1 -Version 0.7.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.6.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.7.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

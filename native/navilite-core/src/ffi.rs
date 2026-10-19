@@ -5,7 +5,7 @@ use crate::{
     page_options::PageOptions,
     profile_transfer,
     profiles::{self, ConnectionProfile},
-    row_insert, row_update, schema, sql_script, table_page,
+    row_insert, row_update, schema, sql_query, sql_script, table_page,
 };
 use serde_json::{json, Value};
 use std::{
@@ -101,6 +101,14 @@ pub unsafe extern "C" fn navilite_sql_script_analyze(request: *const c_char) -> 
     boundary(|| {
         serde_json::to_value(sql_script::analyze(text(request)?)?).map_err(|e| e.to_string())
     })
+}
+
+/// Executes one bounded SELECT on a fresh read-only session, returning NVLR v1.
+/// # Safety
+/// Request must be a valid NUL-terminated UTF-8 JSON string for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_sql_query_read(handle: u64, request: *const c_char) -> FfiBuffer {
+    buffer_boundary(|| sql_query::read(handle, text(request)?))
 }
 
 #[no_mangle]

@@ -138,7 +138,9 @@ pub fn open(
 ) -> Result<ConnectionInfo, String> {
     let password = profiles::password(&profile, supplied)?;
     let metadata = Pool::new(options(&profile, &password, 2)?);
-    let workload = Pool::new(options(&profile, &password, 10)?);
+    // This is a client-side limit; no server setting is changed.
+    let workload =
+        Pool::new(options(&profile, &password, 10)?.max_allowed_packet(Some(8 * 1024 * 1024)));
     redact(
         run(async {
             let started = Instant::now();

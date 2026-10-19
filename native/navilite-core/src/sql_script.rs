@@ -26,14 +26,16 @@ pub struct Statement {
     length_utf16: u32,
     start_line: u32,
     preview: String,
+    #[serde(skip)]
+    pub(crate) read_candidate: bool,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Analysis {
-    statements: Vec<Statement>,
-    current_index: Option<usize>,
-    delimiter_count: u32,
+    pub(crate) statements: Vec<Statement>,
+    pub(crate) current_index: Option<usize>,
+    pub(crate) delimiter_count: u32,
     document_length_utf16: u32,
 }
 
@@ -52,6 +54,7 @@ struct Lexer<'a> {
     start: Option<Position>,
     end: Position,
     has_sql: bool,
+    read_candidate: bool,
     statements: Vec<Statement>,
 }
 
@@ -110,10 +113,12 @@ impl<'a> Lexer<'a> {
                 length_utf16: self.end.utf16 - start.utf16,
                 start_line: start.line,
                 preview,
+                read_candidate: self.read_candidate,
             });
         }
         self.start = None;
         self.has_sql = false;
+        self.read_candidate = true;
         Ok(())
     }
 
@@ -132,18 +137,32 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
     }
     let request: Request = serde_json::from_str(json)
         .map_err(|_| "Invalid SQL analysis request. Check the script and lexer options.")?;
-    if request.script.len() > MAX_BYTES {
+    analyze_script(
+        &request.script,
+        request.caret_utf16,
+        request.backslash_escapes,
+        request.ansi_quotes,
+    )
+}
+
+pub(crate) fn analyze_script(
+    script: &str,
+    caret_utf16: u32,
+    backslash_escapes: bool,
+    ansi_quotes: bool,
+) -> Result<Analysis, String> {
+    if script.len() > MAX_BYTES {
         return Err("SQL scripts are limited to 1 MiB of UTF-8.".into());
     }
-    if request.script.contains('\0') {
+    if script.contains('\0') {
         return Err("SQL scripts cannot contain NUL characters.".into());
     }
-    let length = request.script.encode_utf16().count() as u32;
-    if request.caret_utf16 > length {
+    let length = script.encode_utf16().count() as u32;
+    if caret_utf16 > length {
         return Err("The SQL caret is outside the document.".into());
     }
     let mut lexer = Lexer {
-        text: &request.script,
+        text: script,
         position: Position {
             line: 1,
             ..Position::default()
@@ -151,6 +170,7 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
         start: None,
         end: Position::default(),
         has_sql: false,
+        read_candidate: true,
         statements: Vec::new(),
     };
     let mut delimiter = ";".to_owned();
@@ -221,6 +241,7 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
                 || lexer.rest().starts_with("/*+")
             {
                 lexer.has_sql = true;
+                lexer.read_candidate = false;
             }
             lexer.consume(2, true);
             while !lexer.rest().is_empty() && !lexer.rest().starts_with("*/") {
@@ -235,10 +256,12 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
             }
             lexer.consume(2, true);
         } else if matches!(ch, '\'' | '"' | '`') {
+            if !lexer.has_sql {
+                lexer.read_candidate = false;
+            }
             lexer.has_sql = true;
             let opened = lexer.position;
-            let escapes =
-                request.backslash_escapes && ch != '`' && !(ch == '"' && request.ansi_quotes);
+            let escapes = backslash_escapes && ch != '`' && !(ch == '"' && ansi_quotes);
             lexer.advance(true);
             loop {
                 let Some(next) = lexer.rest().chars().next() else {
@@ -259,7 +282,53 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
                     lexer.advance(true);
                 }
             }
+        } else if ch.is_ascii_alphabetic() || ch == '_' {
+            let start = lexer.position.byte;
+            while lexer
+                .rest()
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '$'))
+                && !lexer.rest().starts_with(&delimiter)
+            {
+                lexer.advance(true);
+            }
+            let word = &script[start..lexer.position.byte];
+            if !lexer.has_sql {
+                lexer.read_candidate = word.eq_ignore_ascii_case("SELECT");
+            }
+            if [
+                "INTO",
+                "FOR",
+                "LOCK",
+                "PROCEDURE",
+                "GET_LOCK",
+                "RELEASE_LOCK",
+                "RELEASE_ALL_LOCKS",
+                "LOAD_FILE",
+                "SLEEP",
+                "BENCHMARK",
+                "SQL_CALC_FOUND_ROWS",
+                "INSERT",
+                "UPDATE",
+                "DELETE",
+                "DROP",
+                "ALTER",
+                "CREATE",
+                "TRUNCATE",
+                "CALL",
+                "SET",
+            ]
+            .iter()
+            .any(|blocked| word.eq_ignore_ascii_case(blocked))
+            {
+                lexer.read_candidate = false;
+            }
+            lexer.has_sql = true;
         } else {
+            if !lexer.has_sql || matches!(ch, '@' | '?' | ':' | '\\') {
+                lexer.read_candidate = false;
+            }
             lexer.has_sql = true;
             lexer.advance(true);
         }
@@ -270,7 +339,7 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
     let current_index = lexer
         .statements
         .iter()
-        .position(|s| request.caret_utf16 <= s.start_utf16 + s.length_utf16)
+        .position(|s| caret_utf16 <= s.start_utf16 + s.length_utf16)
         .or_else(|| lexer.statements.len().checked_sub(1));
     Ok(Analysis {
         statements: lexer.statements,
@@ -278,4 +347,33 @@ pub fn analyze(json: &str) -> Result<Analysis, String> {
         delimiter_count,
         document_length_utf16: length,
     })
+}
+
+/// Convert a WPF offset without silently splitting a surrogate pair.
+pub(crate) fn byte_offset(text: &str, utf16: u32) -> Result<usize, String> {
+    let mut units = 0;
+    for (byte, ch) in text.char_indices() {
+        if units == utf16 {
+            return Ok(byte);
+        }
+        units += ch.len_utf16() as u32;
+        if units > utf16 {
+            break;
+        }
+    }
+    if units == utf16 {
+        Ok(text.len())
+    } else {
+        Err(
+            "The SQL selection must lie within the document and cannot split a Unicode character."
+                .into(),
+        )
+    }
+}
+
+impl Statement {
+    pub(crate) fn source<'a>(&self, script: &'a str) -> Result<&'a str, String> {
+        Ok(&script[byte_offset(script, self.start_utf16)?
+            ..byte_offset(script, self.start_utf16 + self.length_utf16)?])
+    }
 }

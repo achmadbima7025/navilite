@@ -384,7 +384,8 @@
               <TabItem Header="SQL editor">
                 <Grid Margin="12" PreviewKeyDown="SqlWorkspace_KeyDown">
                     <Grid.InputBindings>
-                        <KeyBinding Key="F9" Command="{Binding SelectCurrentSqlCommand}" />
+                        <KeyBinding Key="F9" Command="{Binding RunSqlCommand}" />
+                        <KeyBinding Key="F9" Modifiers="Alt" Command="{Binding SelectCurrentSqlCommand}" />
                         <KeyBinding Key="F9" Modifiers="Control" Command="{Binding AnalyzeSqlCommand}" />
                     </Grid.InputBindings>
                     <Grid.RowDefinitions>
@@ -397,11 +398,17 @@
                         <Button Content="Open…" Click="OpenSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+O" />
                         <Button Content="Save as…" Click="SaveSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+S — choose a file and confirm replacement" />
                         <Button Content="Analyze script" Command="{Binding AnalyzeSqlCommand}" ToolTip="Ctrl+F9 — find all statement boundaries" />
-                        <Button Content="Select current" Command="{Binding SelectCurrentSqlCommand}" ToolTip="F9 — highlight the statement at the caret" />
+                        <Button Content="Select current" Command="{Binding SelectCurrentSqlCommand}" ToolTip="Alt+F9 — highlight the statement at the caret" />
+                        <Button Content="Run SELECT" Command="{Binding RunSqlCommand}" ToolTip="F9 — run exactly one SELECT from selected text, or the statement at the caret, in a fresh read-only transaction" />
                     </WrapPanel>
                     <WrapPanel Grid.Row="2" IsEnabled="{Binding CanUseSqlEditor}" Margin="0,0,0,8">
                         <CheckBox Content="Backslash escapes in strings" IsChecked="{Binding SqlBackslashEscapes}" Margin="0,0,16,0" />
                         <CheckBox Content="ANSI_QUOTES" IsChecked="{Binding SqlAnsiQuotes}" ToolTip="Treat double quotes as identifier quotes. Match the script's intended SQL mode." />
+                        <TextBlock Text="Database" Margin="18,0,6,0" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding Databases}" DisplayMemberPath="Name" IsEditable="True" Text="{Binding SqlDatabase, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="170" ToolTip="Optional default database for this run; leave blank for fully qualified queries" />
+                        <TextBlock Text="Rows" Margin="12,0,6,0" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding SqlRowLimits}" SelectedItem="{Binding SqlRowLimit}" Width="75" />
                     </WrapPanel>
                     <TextBlock Grid.Row="3" Text="{Binding SqlAnalysisStatus}" Foreground="#75849A" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <TextBox x:Name="ScriptEditor" Grid.Row="4" Text="{Binding SqlText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanUseSqlEditor}"
@@ -409,7 +416,9 @@
                              AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" VerticalContentAlignment="Top"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="SQL script editor" />
                     <GridSplitter Grid.Row="5" Height="5" HorizontalAlignment="Stretch" Background="#DCE3EF" />
-                    <DataGrid Grid.Row="6" ItemsSource="{Binding SqlStatements}" SelectedItem="{Binding SelectedSqlStatement, Mode=TwoWay}"
+                    <TabControl Grid.Row="6" SelectedIndex="{Binding SqlResultPaneIndex}">
+                      <TabItem Header="Statements">
+                        <DataGrid ItemsSource="{Binding SqlStatements}" SelectedItem="{Binding SelectedSqlStatement, Mode=TwoWay}"
                               AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False"
                               SelectionMode="Single" SelectionUnit="FullRow" EnableRowVirtualization="True" BorderBrush="#E0E6F0" AutomationProperties.Name="SQL statement boundaries">
                         <DataGrid.Columns>
@@ -417,7 +426,19 @@
                             <DataGridTextColumn Header="Line" Binding="{Binding StartLine}" Width="65" />
                             <DataGridTextColumn Header="Statement preview" Binding="{Binding Preview}" Width="*" />
                         </DataGrid.Columns>
-                    </DataGrid>
+                        </DataGrid>
+                      </TabItem>
+                      <TabItem Header="SELECT result · read only">
+                        <DockPanel Margin="6">
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding SqlRunStatus}" TextWrapping="Wrap" Foreground="#75849A" Margin="0,0,0,8" />
+                            <DataGrid x:Name="SqlResultGrid" ItemsSource="{Binding SqlResult.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                      CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionUnit="FullRow"
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                      ScrollViewer.CanContentScroll="True" ClipboardCopyMode="IncludeHeader" GridLinesVisibility="Horizontal" RowHeight="29"
+                                      HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD" AutomationProperties.Name="Read-only SQL query result" />
+                        </DockPanel>
+                      </TabItem>
+                    </TabControl>
                 </Grid>
               </TabItem>
             </TabControl>

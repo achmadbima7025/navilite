@@ -9,7 +9,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 keyring = { version = "3.6.3", features = ["windows-native"] }
-mysql_async = { version = "0.37.1", default-features = false, features = ["minimal-rust", "rustls-tls", "ring"] }
+# sql_query's abort guard relies on this driver's disconnect/drop ordering.
+mysql_async = { version = "=0.37.1", default-features = false, features = ["minimal-rust", "rustls-tls", "ring"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "net", "macros"] }

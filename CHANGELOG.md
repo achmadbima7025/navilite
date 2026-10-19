@@ -4,6 +4,20 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-19
+
+### Added
+
+- Run one SELECT from the editor caret or an explicit selection, with optional default database, 100/500/1,000-row choices, and a separate read-only result grid. F9 now runs SELECT; Alt+F9 selects the current statement and Ctrl+F9 remains offline analysis.
+- Native execution through one prepared statement on a reset workload connection within the existing 10-connection pool, a server read-only transaction, SQL-mode matching, session-only row ceiling, and incremental bounded NVLR v1 result encoding. Query connections are closed after every request rather than reused by the pool.
+- Up to 1,024 columns and 8 MiB per result/driver packet, text previews of 1,024 Unicode characters and binary previews of 256 bytes, distinct NULL/empty values, and exact protocol numeric/temporal formatting. Existing results survive failures and edits; replacing the document or disconnecting releases them.
+- Additive `navilite_sql_query_read` FFI and generated C# bindings. History records duration/outcome with an omitted-text marker; errors retain server error numbers while excluding server messages and query literals.
+- Cancellation-safe session ownership with an immediately cancelled disconnect future, avoiding the driver's asynchronous result-drain path. mysql_async is pinned to exactly 0.37.1 because this abort path depends on its disconnect/drop ordering.
+
+### Scope
+
+- Plain SELECT only, one statement per run, 1 MiB document limit and existing 10-second client timeout. DML/DDL, WITH/CTEs, Run All, query parameters, variables, INTO, locking reads, executable/hint comments, known lock/file/delay functions, persistent query sessions, cancellation controls, multi-result pinning, and result cell rereads remain pending. Editor quote/escape options must match the connection's SQL mode. Preview/row caps do not cap server computation; closing a socket is not a server-side KILL guarantee. Read-only transactions govern database writes, not arbitrary external side effects of installed server functions. No developer database, account, or server configuration is changed during verification.
+
 ## [0.11.0] - 2026-10-19
 
 ### Added

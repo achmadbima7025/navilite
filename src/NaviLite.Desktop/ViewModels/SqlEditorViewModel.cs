@@ -13,7 +13,7 @@ public sealed partial class MainViewModel
     private bool _sqlBackslashEscapes = true;
     private bool _sqlAnsiQuotes;
     private SqlStatementSpan? _selectedSqlStatement;
-    private string _sqlAnalysisStatus = "Edit a script, then analyze its statement boundaries. No SQL is executed.";
+    private string _sqlAnalysisStatus = "Analyze statement boundaries offline, or connect and Run SELECT from the caret or selected text.";
 
     public event Action<SqlStatementSpan>? SqlSelectionRequested;
     public AsyncCommand AnalyzeSqlCommand { get; }
@@ -95,6 +95,7 @@ public sealed partial class MainViewModel
         _sqlPath = path;
         SqlCaretUtf16 = 0;
         ClearSqlAnalysis();
+        ClearSqlResult();
         NotifySqlDocument();
         SelectedWorkspaceTab = 4;
     }
@@ -104,13 +105,14 @@ public sealed partial class MainViewModel
         Changed(nameof(IsSqlDirty));
         Changed(nameof(SqlDocumentTitle));
         Changed(nameof(SqlPath));
+        RefreshCommands();
     }
 
     private void ClearSqlAnalysis()
     {
         SelectedSqlStatement = null;
         SqlStatements.Clear();
-        SqlAnalysisStatus = "Analyze to refresh statement boundaries. No SQL is executed.";
+        SqlAnalysisStatus = "Analyze to refresh statement boundaries. Analysis is offline; Run SELECT uses the active connection.";
     }
 
     private async Task AnalyzeSqlAsync(bool selectCurrent)

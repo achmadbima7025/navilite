@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.11.0
+## Status aplikasi: 0.12.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -155,7 +155,17 @@ Inkrement 0.11.0 menambahkan fondasi SQL editor:
 - `DELIMITER` panjang dikenali tanpa membedakan kapital pada awal baris setelah spasi/tab. Akhiri statement sebelum mengganti delimiter. Token delimiter harus satu token ASCII tercetak tanpa kutip sepanjang 1–32 byte; quote/backtick, backslash, `#`, penanda komentar, serta token tunggal `/` dan `-` ditolak. `;`, `$$`, `//`, dan `;;` didukung. Perintah klien mysql lain belum diinterpretasikan. Lihat [perintah klien MySQL](https://dev.mysql.com/doc/refman/8.4/en/mysql-commands.html).
 - Batas skrip/berkas 1 MiB UTF-8 dan 1.000 statement; Unicode menggunakan offset UTF-16 agar seleksi WPF tetap sesuai. Kutip/komentar blok yang belum selesai menghasilkan lokasi kesalahan tanpa menampilkan isi skrip di log. Dokumen hanya disimpan melalui tindakan Save as; analisis tidak mengakses database atau mencatat isi skrip ke history.
 
-SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production, penyuntingan data, kelompok filter bertingkat, eksekusi SQL bebas, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete/formatting SQL, multi-dokumen/result grid, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; aplikasi belum menyediakan eksekusi SQL pengguna.
+Inkrement 0.12.0 menambahkan eksekusi SELECT terbatas:
+
+- Hubungkan profil, buka tab SQL editor, tentukan Database bila perlu, lalu Run SELECT (F9). Teks yang diseleksi harus berisi tepat satu SELECT tanpa directive; tanpa seleksi, Rust memilih statement pada kursor. Alt+F9 sekarang menyorot statement, sedangkan Ctrl+F9 tetap menganalisis skrip secara offline. Hasil muncul di tab SELECT result dengan kolom dinamis, konteks koneksi/database, durasi seluruh permintaan, jumlah baris, dan penanda nilai terpotong.
+- Setiap run meminjam satu slot dari pool workload (maksimal 10), mereset sesi agar terpisah dari borrower sebelumnya, dan menjalankan satu prepared statement di dalam `START TRANSACTION READ ONLY`. Opsi ANSI_QUOTES/backslash editor harus sama dengan SQL mode sesi server; perbedaan menolak eksekusi dan menampilkan opsi yang perlu dipilih. Database default hanya berlaku untuk run tersebut. Koneksi ditutup pada akhir permintaan, sehingga transaksi dan variabel sesi tidak bertahan ke run berikutnya; pool metadata tetap terpisah (maksimal 2). Run SELECT memerlukan dukungan COM_RESET_CONNECTION (MySQL 5.7.3+ atau MariaDB 10.2.4+).
+- Pilih batas 100, 500, atau 1.000 baris. Batas native tetap 1–1.000 baris, 1.024 kolom, 8 MiB frame/packet klien, dan 1 MiB dokumen UTF-8. Pembaca berhenti setelah baris tambahan untuk menentukan apakah hasil masih tersedia. Nilai teks ditampilkan maksimal 1.024 karakter Unicode; biner maksimal 256 byte dalam hex. NULL, string kosong, dan biner kosong tetap berbeda. Angka/desimal/temporal berasal dari protokol prepared statement; hasil tidak mempunyai identitas primary key untuk reread/SQL INSERT/UPDATE.
+- `sql_select_limit` hanya disetel pada sesi run yang akan ditutup. LIMIT eksplisit pada kueri tetap mengikuti [aturan MySQL](https://dev.mysql.com/doc/refman/8.4/en/server-system-variables.html#sysvar_sql_select_limit), sementara pembaca tetap membatasi baris yang ditampilkan. Batas hasil dan timeout klien 10 detik tidak membatasi biaya komputasi server; penutupan koneksi tidak menjamin kueri server langsung berhenti. Tidak ada perubahan pengaturan global server.
+- Guard bersifat konservatif: hanya awalan SELECT, tanpa INTO, variabel/parameter, locking read, komentar executable/hint, atau perintah pengubah data/administratif. Fungsi lock/file/delay yang dikenali juga ditolak. Read-only transaction mengatur penulisan database, bukan menjadi sandbox untuk efek eksternal fungsi server yang terpasang. CTE/WITH, DML/DDL, Run All, EXPLAIN, persistent session, tombol cancel, dan pin/multiple result belum tersedia.
+- Hasil terakhir tetap ditandai sebagai snapshot ketika teks diedit atau run berikutnya gagal. Dokumen baru/berkas lain dan disconnect menghapus hasil serta melepaskan buffer. History menyimpan durasi/status dan `[User SQL text omitted]`, tanpa isi SQL/hasil. Error SQL hanya menampilkan nomor error server; detail pesan yang mungkin mengandung literal disembunyikan.
+- Driver dipatok tepat pada mysql_async 0.37.1. Penjaga kepemilikan sesi di Rust memulai lalu langsung membatalkan future disconnect agar socket yang ditandai disconnected dibuang, termasuk pada timeout, tanpa menjadwalkan drain sisa hasil. Urutan internal driver tersebut harus diperiksa ulang sebelum upgrade; disconnect biasa menguras hasil yang belum dibaca.
+
+SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production untuk perintah pengubah data, penyuntingan data, kelompok filter bertingkat, eksekusi SQL umum/Run All, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete/formatting SQL, multi-dokumen/result pinning, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; Run SELECT tetap memakai transaksi read-only pada semua lingkungan.
 
 ## Build dan jalankan
 
@@ -189,6 +199,8 @@ Struktur kode:
 | `native/navilite-core/src/row_insert.rs` | Pembuatan SQL INSERT terbatas dari metadata halaman dan nilai pilihan, tanpa eksekusi |
 | `native/navilite-core/src/row_update.rs` | Pembuatan SQL UPDATE dengan primary key asli, daftar SET tanpa key/generated, dan LIMIT 1 |
 | `native/navilite-core/src/sql_script.rs` | Lexer SQL offline, DELIMITER, lokasi kesalahan, dan rentang statement UTF-16 |
+| `native/navilite-core/src/sql_query.rs` | Seleksi statement, guard SELECT, sesi read-only terpisah, dan error tanpa literal |
+| `native/navilite-core/src/query_result.rs` | Pengodean NVLR inkremental dari metadata dan baris hasil prepared statement |
 | `src/NaviLite.Desktop/ViewModels/SqlEditorViewModel.cs` | Dokumen SQL, perubahan belum disimpan, opsi lexer, dan pemilihan statement |
 | `src/NaviLite.Desktop/Services/SqlScriptFiles.cs` | Baca UTF-8 terbatas dan penyimpanan atomik dokumen SQL |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
@@ -228,6 +240,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_rows_insert_sql` | Page ID dan array JSON `{index,cells:[{value,truncated}]}`; string INSERT, hanya format, tanpa SQL ke server |
 | `navilite_rows_update_sql` | Page ID dan array nilai yang sama; skrip UPDATE memakai seluruh primary key asli dan LIMIT 1, tanpa eksekusi |
 | `navilite_sql_script_analyze` | JSON `{script,caretUtf16,backslashEscapes,ansiQuotes}`; daftar rentang UTF-16, currentIndex berbasis nol/null, jumlah directive dan panjang dokumen; offline |
+| `navilite_sql_query_read` | Handle + JSON `{script,caretUtf16,selectionStartUtf16,selectionLengthUtf16,database,rowLimit,backslashEscapes,ansiQuotes}`; FfiBuffer NVLR v1 tanpa page lease, satu SELECT read-only |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
@@ -272,10 +285,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.11.0
+./scripts/Set-Version.ps1 -Version 0.12.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.11.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.12.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

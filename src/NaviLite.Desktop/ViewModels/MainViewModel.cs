@@ -51,7 +51,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         AddSortCommand = new(AddSortAsync, () => CanQuery && DraftSorts.Count < 8);
         AnalyzeSqlCommand = new(() => AnalyzeSqlAsync(false), () => CanUseSqlEditor);
         SelectCurrentSqlCommand = new(() => AnalyzeSqlAsync(true), () => CanUseSqlEditor);
+        RunSqlCommand = new(RunSqlAsync, () => CanRunSql);
         _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand, InspectDefinitionCommand, ReloadDefinitionCommand, CopyDefinitionCommand, RefreshBranchCommand, AnalyzeSqlCommand, SelectCurrentSqlCommand];
+        _commands = [.. _commands, RunSqlCommand];
         ResetQueryState();
     }
 
@@ -207,6 +209,8 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         ulong handle = _handle;
         _handle = 0;
         ClearPreview();
+        ClearSqlResult();
+        SqlDatabase = string.Empty;
         Databases.Clear();
         SelectedNode = null;
         ServerSummary = "No active connection";
@@ -257,6 +261,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Changed(nameof(CanExportDefinition));
         Changed(nameof(CanExportConnections));
         Changed(nameof(CanUseSqlEditor));
+        Changed(nameof(CanRunSql));
         RefreshCommands();
     }
 

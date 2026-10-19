@@ -92,7 +92,7 @@ public sealed partial class MainViewModel
         finally { _sqlBatchRunning = false; RefreshCommands(); }
     }
 
-    private void AddSqlResult(NativePage page, string context, long elapsedMs, int? statementIndex, bool replaceUnpinned)
+    private void AddSqlResult(NativePage page, string context, long elapsedMs, int? statementIndex, bool replaceUnpinned, bool isExplain = false)
     {
         bool attached = false;
         try
@@ -101,7 +101,7 @@ public sealed partial class MainViewModel
             ulong bytes = (ulong)retained.Sum(result => (long)result.Page.ByteLength);
             if (retained.Length >= MaximumSqlResults || bytes + page.ByteLength > MaximumSqlResultBytes)
                 throw new InvalidOperationException("Result snapshots are limited to 8 tabs and 32 MiB in total. Close snapshots or reduce the row limit before running again.");
-            var snapshot = new SqlResultSnapshot(++_sqlResultSequence, page, context, elapsedMs, statementIndex);
+            var snapshot = new SqlResultSnapshot(++_sqlResultSequence, page, context, elapsedMs, statementIndex, isExplain);
             if (replaceUnpinned) RemoveSqlResults(false);
             SqlResults.Add(snapshot);
             attached = true;

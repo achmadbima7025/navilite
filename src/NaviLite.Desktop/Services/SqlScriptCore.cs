@@ -6,6 +6,14 @@ namespace NaviLite.Desktop.Services;
 
 public sealed unsafe partial class NativeCore
 {
+    public Task<NativePage> ExplainSqlQueryAsync(ulong handle, string script, int caretUtf16, int selectionStartUtf16, int selectionLengthUtf16,
+        string database, bool backslashEscapes, bool ansiQuotes) => Task.Run(() =>
+    {
+        byte[] payload = Utf8(JsonSerializer.Serialize(new { script, caretUtf16, selectionStartUtf16, selectionLengthUtf16, database, backslashEscapes, ansiQuotes }, JsonOptions));
+        fixed (byte* pointer = payload)
+            return new NativePage(new FfiPage { buffer = NativeMethods.navilite_sql_query_explain(handle, pointer), page_id = 0 });
+    });
+
     public Task<SqlFormatEdit> FormatSqlScriptAsync(string script, int caretUtf16, int selectionStartUtf16, int selectionLengthUtf16,
         bool backslashEscapes, bool ansiQuotes) => Task.Run(() =>
     {

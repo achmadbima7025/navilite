@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.14.0
+## Status aplikasi: 0.15.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -180,6 +180,13 @@ Inkrement 0.14.0 menambahkan Format SQL offline:
 - Seleksi harus berakhir dan dimulai pada batas token utuh; memilih teks SQL di tengah string, identifier, atau komentar ditolak. Whitespace tepi seleksi dipertahankan agar teks di luar seleksi tidak menyatu. Setelah format, seleksi dipertahankan atau kursor dipetakan ke token yang sama; edit dikelompokkan sebagai satu operasi undo melalui [change block WPF](https://learn.microsoft.com/en-us/dotnet/api/system.windows.controls.primitives.textboxbase.beginchange). Ctrl+Z mengembalikan edit. Hasil kueri/pin tetap ada, dan status dirty mengikuti perubahan dokumen.
 - Batas input/output dokumen 1 MiB UTF-8, 100.000 token leksikal, dan 64 tingkat tanda kurung. Formatter memakai kebijakan plain SELECT yang sama dengan Run SELECT dan menolak DELIMITER, konstruksi di luar kebijakan, quote/komentar yang belum selesai, serta tanda kurung yang tidak seimbang. Pemeriksaan ini bukan validasi sintaks SQL; server tetap menentukan validitas sintaks saat kueri dijalankan. Format tidak menjalankan SQL atau mencatat isinya ke log.
 
+Inkrement 0.15.0 menambahkan Explain dalam format tabel:
+
+- Explain (Ctrl+E) mengambil rencana optimizer untuk satu plain SELECT di kursor atau seleksi, memakai koneksi aktif dan database editor. Validasi SELECT, pencocokan mode quote, reset sesi, transaksi read-only, timeout 10 detik, serta batas paket/frame 8 MiB tetap berlaku. Input berupa EXPLAIN/ANALYZE atau statement pengubah data ditolak.
+- MySQL memakai `EXPLAIN FORMAT=TRADITIONAL` agar pengaturan default `explain_format` tidak mengubah bentuk hasil; MariaDB memakai `EXPLAIN` untuk format tabelnya. Lihat dokumentasi [MySQL](https://dev.mysql.com/doc/refman/8.0/en/explain.html) dan [MariaDB](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/explain). Aplikasi tidak menambahkan `sql_select_limit` pada sesi Explain, sehingga pembatas baris hasil tidak mengubah estimasi SELECT. Plan dibatasi 1.000 baris pada pembaca hasil, terpisah dari pilihan Rows untuk Run SELECT.
+- Snapshot EXPLAIN dapat dipin dan dibandingkan dengan hasil SELECT/plan berikutnya. Batas delapan tab dan 32 MiB frame berlaku bersama; kegagalan mempertahankan snapshot sebelumnya. Kolom indikator dan warna amber menandai `type=ALL`, `Using filesort`, serta `Using temporary`. Ringkasan menandai plan yang belum lengkap ketika baris/sel dipendekkan atau metadata yang diharapkan tidak tersedia. Penanda ini membantu inspeksi estimasi optimizer dan bukan penilaian mutlak performa kueri.
+- History menyimpan label User EXPLAIN, waktu, konteks database, dan outcome; isi SQL serta pesan server tetap dihilangkan. Format JSON, plan tree, analisis eksekusi aktual, dan rekomendasi indeks belum tersedia. Transaksi read-only dan kebijakan SELECT bukan sandbox untuk seluruh kemungkinan efek fungsi/optimizer.
+
 SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production untuk perintah pengubah data, penyuntingan data, kelompok filter bertingkat, eksekusi SQL umum di luar SELECT, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete, formatter grammar SQL umum, multi-dokumen, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; semua eksekusi editor tetap memakai transaksi read-only.
 
 ## Build dan jalankan
@@ -201,8 +208,8 @@ Build Release:
 Untuk membuat build terpisah saat aplikasi sebelumnya masih terbuka:
 
 ```powershell
-./scripts/Build.ps1 -Configuration Release -OutputDirectory .dev/build-v0.14.0/desktop
-& ./.dev/build-v0.14.0/desktop/NaviLite.Desktop.exe
+./scripts/Build.ps1 -Configuration Release -OutputDirectory .dev/build-v0.15.0/desktop
+& ./.dev/build-v0.15.0/desktop/NaviLite.Desktop.exe
 ```
 
 `OutputDirectory` berlaku pada output desktop beserta salinan DLL native; cache dan hasil build Rust tetap di `target/`. Build ini tidak mengganti executable/DLL pada folder aplikasi yang sedang digunakan. `Run.ps1` tetap memakai lokasi output default.
@@ -224,7 +231,7 @@ Struktur kode:
 | `native/navilite-core/src/row_update.rs` | Pembuatan SQL UPDATE dengan primary key asli, daftar SET tanpa key/generated, dan LIMIT 1 |
 | `native/navilite-core/src/sql_script.rs` | Lexer SQL offline, DELIMITER, lokasi kesalahan, dan rentang statement UTF-16 |
 | `native/navilite-core/src/sql_format.rs` | Layout SELECT offline, validasi batas seleksi/token, dan pemetaan kursor UTF-16 |
-| `native/navilite-core/src/sql_query.rs` | Seleksi statement, guard SELECT, sesi read-only terpisah, dan error tanpa literal |
+| `native/navilite-core/src/sql_query.rs` | Seleksi statement, guard SELECT/EXPLAIN, sesi read-only terpisah, dan error tanpa literal |
 | `native/navilite-core/src/query_result.rs` | Pengodean NVLR inkremental dari metadata dan baris hasil prepared statement |
 | `src/NaviLite.Desktop/ViewModels/SqlEditorViewModel.cs` | Dokumen SQL, perubahan belum disimpan, opsi lexer, dan pemilihan statement |
 | `src/NaviLite.Desktop/Services/SqlScriptFiles.cs` | Baca UTF-8 terbatas dan penyimpanan atomik dokumen SQL |
@@ -268,6 +275,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_rows_update_sql` | Page ID dan array nilai yang sama; skrip UPDATE memakai seluruh primary key asli dan LIMIT 1, tanpa eksekusi |
 | `navilite_sql_script_analyze` | JSON `{script,caretUtf16,backslashEscapes,ansiQuotes}`; daftar rentang UTF-16, currentIndex berbasis nol/null, jumlah directive dan panjang dokumen; offline |
 | `navilite_sql_query_read` | Handle + JSON `{script,caretUtf16,selectionStartUtf16,selectionLengthUtf16,database,rowLimit,backslashEscapes,ansiQuotes}`; FfiBuffer NVLR v1 tanpa page lease, satu SELECT read-only |
+| `navilite_sql_query_explain` | Handle + JSON seleksi/opsi yang sama dengan read; FfiBuffer NVLR v1 berisi plan EXPLAIN tabel, maksimal 1.000 baris terlepas dari pilihan Rows |
 | `navilite_sql_script_prepare_reads` | JSON skrip/opsi lexer dengan caret; analisis rentang seluruh 1–8 SELECT yang lolos guard satu statement; offline, tanpa koneksi database |
 | `navilite_sql_script_format` | JSON `{script,caretUtf16,selectionStartUtf16,selectionLengthUtf16,backslashEscapes,ansiQuotes}`; edit `{startUtf16,lengthUtf16,replacement,caretUtf16,formattedStatements,changed}`, offline |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
@@ -314,10 +322,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.14.0
+./scripts/Set-Version.ps1 -Version 0.15.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.14.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.15.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

@@ -390,6 +390,7 @@
                         <KeyBinding Key="F9" Modifiers="Control" Command="{Binding RunAllSqlCommand}" />
                         <KeyBinding Key="F9" Modifiers="Control+Shift" Command="{Binding AnalyzeSqlCommand}" />
                         <KeyBinding Key="F" Modifiers="Control+Shift" Command="{Binding FormatSqlCommand}" />
+                        <KeyBinding Key="E" Modifiers="Control" Command="{Binding ExplainSqlCommand}" />
                     </Grid.InputBindings>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
@@ -404,6 +405,7 @@
                         <Button Content="Format SQL" Command="{Binding FormatSqlCommand}" ToolTip="Ctrl+Shift+F — format plain SELECT scripts or selected statements offline; Ctrl+Z undoes the edit" />
                         <Button Content="Select current" Command="{Binding SelectCurrentSqlCommand}" ToolTip="Alt+F9 — highlight the statement at the caret" />
                         <Button Content="Run SELECT" Command="{Binding RunSqlCommand}" ToolTip="F9 — run exactly one SELECT from selected text, or the statement at the caret, in a fresh read-only transaction" />
+                        <Button Content="Explain" Command="{Binding ExplainSqlCommand}" ToolTip="Ctrl+E — request a tabular optimizer plan for one plain SELECT using the current caret or selection" />
                         <Button Content="Run All SELECTs" Command="{Binding RunAllSqlCommand}" ToolTip="Ctrl+F9 — preflight the entire script, then run up to 8 SELECT statements in source order" />
                         <Button Content="Stop after current" Command="{Binding StopSqlBatchCommand}" ToolTip="Finish the active SELECT, then skip remaining statements. Each SELECT has a 10 second client timeout." />
                     </WrapPanel>
@@ -434,7 +436,7 @@
                         </DataGrid.Columns>
                         </DataGrid>
                       </TabItem>
-                      <TabItem Header="SELECT results · read only">
+                      <TabItem Header="SQL results · read only">
                         <DockPanel Margin="6">
                             <TextBlock DockPanel.Dock="Top" Text="{Binding SqlRunStatus}" TextWrapping="Wrap" Foreground="#75849A" Margin="0,0,0,8" />
                             <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">

@@ -18,6 +18,12 @@ public partial class SqlResultView : UserControl
         if (ResultGrid is null) return;
         ResultGrid.Columns.Clear();
         if (context is not SqlResultSnapshot result) return;
+        if (result.IsExplain)
+            ResultGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Plan indicators", Binding = new Binding(nameof(SqlResultRow.Indicators)),
+                Width = new DataGridLength(220), MinWidth = 100, MaxWidth = 400
+            });
         for (int index = 0; index < result.Page.Columns.Count; index++)
         {
             var column = result.Page.Columns[index];

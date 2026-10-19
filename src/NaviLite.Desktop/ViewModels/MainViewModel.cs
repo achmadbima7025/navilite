@@ -52,6 +52,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         AnalyzeSqlCommand = new(() => AnalyzeSqlAsync(false), () => CanUseSqlEditor);
         SelectCurrentSqlCommand = new(() => AnalyzeSqlAsync(true), () => CanUseSqlEditor);
         FormatSqlCommand = new(FormatSqlAsync, () => CanUseSqlEditor && !string.IsNullOrWhiteSpace(SqlText));
+        ExplainSqlCommand = new(ExplainSqlAsync, () => CanRunSql);
         RunSqlCommand = new(() => RunSqlAsync(), () => CanRunSql);
         RunAllSqlCommand = new(() => RunSqlAsync(true), () => CanRunSql);
         StopSqlBatchCommand = new(StopSqlBatchAsync, () => _sqlBatchRunning && !_stopSqlBatch);
@@ -59,7 +60,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         CloseSqlResultCommand = new(CloseSqlResultAsync, () => CanUseSqlEditor && SelectedSqlResult is not null);
         ClearUnpinnedSqlResultsCommand = new(ClearUnpinnedSqlResultsAsync, () => CanUseSqlEditor && SqlResults.Any(result => !result.IsPinned));
         _commands = [NewCommand, SaveCommand, DeleteCommand, TestCommand, ConnectCommand, DisconnectCommand, RefreshCommand, OpenTableCommand, NextPageCommand, PreviousPageCommand, ReloadPageCommand, ApplyQueryCommand, ResetQueryCommand, PreviousRecordCommand, NextRecordCommand, ToggleFormCommand, RefreshHistoryCommand, ClearHistoryCommand, AddFilterCommand, AddSortCommand, InspectDefinitionCommand, ReloadDefinitionCommand, CopyDefinitionCommand, RefreshBranchCommand, AnalyzeSqlCommand, SelectCurrentSqlCommand];
-        _commands = [.. _commands, RunSqlCommand, RunAllSqlCommand, StopSqlBatchCommand, PinSqlResultCommand, CloseSqlResultCommand, ClearUnpinnedSqlResultsCommand, FormatSqlCommand];
+        _commands = [.. _commands, RunSqlCommand, RunAllSqlCommand, StopSqlBatchCommand, PinSqlResultCommand, CloseSqlResultCommand, ClearUnpinnedSqlResultsCommand, FormatSqlCommand, ExplainSqlCommand];
         ResetQueryState();
     }
 

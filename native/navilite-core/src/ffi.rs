@@ -121,6 +121,18 @@ pub unsafe extern "C" fn navilite_sql_query_read(handle: u64, request: *const c_
     buffer_boundary(|| sql_query::read(handle, text(request)?))
 }
 
+/// Explains one plain SELECT in tabular format on a fresh read-only session.
+/// Returns bounded NVLR v1 plan rows; never issues EXPLAIN ANALYZE.
+/// # Safety
+/// Request must be valid NUL-terminated UTF-8 JSON for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_sql_query_explain(
+    handle: u64,
+    request: *const c_char,
+) -> FfiBuffer {
+    buffer_boundary(|| sql_query::explain(handle, text(request)?))
+}
+
 /// Preflights all statements as bounded single SELECTs without contacting a database.
 /// # Safety
 /// Request must be a valid NUL-terminated UTF-8 JSON string for this call.

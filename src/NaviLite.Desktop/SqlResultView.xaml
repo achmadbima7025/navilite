@@ -4,10 +4,27 @@
              DataContextChanged="View_DataContextChanged" Loaded="View_Loaded">
     <DockPanel Margin="6">
         <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" TextWrapping="Wrap" Foreground="#75849A" Margin="0,0,0,8" />
-        <DataGrid x:Name="ResultGrid" ItemsSource="{Binding Page.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+        <TextBlock DockPanel.Dock="Top" Text="{Binding PlanSummary}" TextWrapping="Wrap" Padding="10,8" Margin="0,0,0,8">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" /><Setter Property="Background" Value="#EEF4FA" /><Setter Property="Foreground" Value="#52627B" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsExplain}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                        <DataTrigger Binding="{Binding HasPlanIndicators}" Value="True"><Setter Property="Background" Value="#FFF2D5" /><Setter Property="Foreground" Value="#805214" /></DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+        <DataGrid x:Name="ResultGrid" ItemsSource="{Binding Rows}" AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionUnit="FullRow"
                   EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                   ScrollViewer.CanContentScroll="True" ClipboardCopyMode="IncludeHeader" GridLinesVisibility="Horizontal" RowHeight="29"
-                  HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD" AutomationProperties.Name="Read-only SQL result snapshot" />
+                  HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD" AutomationProperties.Name="Read-only SQL result snapshot">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow"><Style.Triggers>
+                    <DataTrigger Binding="{Binding HasIndicators}" Value="True"><Setter Property="Background" Value="#FFF2D5" /></DataTrigger>
+                </Style.Triggers></Style>
+            </DataGrid.RowStyle>
+        </DataGrid>
     </DockPanel>
 </UserControl>

@@ -94,12 +94,13 @@ pub(crate) async fn query<T>(
     result.map_err(|error| error.to_string())
 }
 
-pub(crate) async fn user_read<T>(
+pub(crate) async fn user_sql<T>(
     handle: u64,
+    operation: &'static str,
     context: &str,
     future: impl Future<Output = Result<T, String>>,
 ) -> Result<T, String> {
-    let mut pending = Pending::new(handle, "User SELECT", context, "[User SQL text omitted]");
+    let mut pending = Pending::new(handle, operation, context, "[User SQL text omitted]");
     let result = future.await;
     if let Some(entry) = &mut pending.entry {
         entry.outcome = if result.is_ok() { "success" } else { "error" };

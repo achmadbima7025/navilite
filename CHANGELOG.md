@@ -4,6 +4,19 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-19
+
+### Added
+
+- Explain (Ctrl+E) for the single plain SELECT at the caret or in selected text. Plans use fresh reset read-only workload sessions, editor/server quote-mode checks, the existing 10-second timeout, bounded NVLR buffers, and a separate SQL-free User EXPLAIN history marker.
+- Tabular plans join SELECT snapshots with distinct titles, Pin/Unpin, Close, and the same eight-tab / 32 MiB limits. Failed requests retain previous snapshots. Amber plan rows and an indicator column identify ALL, Using filesort, and Using temporary; a summary describes these as optimizer estimates, with incomplete-plan notices when rows or cells are shortened or expected metadata is unavailable.
+- Additive `navilite_sql_query_explain` FFI and generated C# bindings. MySQL requests explicitly use FORMAT=TRADITIONAL; MariaDB uses its plain tabular EXPLAIN syntax. Plans are capped at 1,000 rows without setting sql_select_limit, preserving the original SELECT's estimate.
+
+### Scope
+
+- The existing conservative plain SELECT policy applies. Explain does not accept user-authored EXPLAIN/ANALYZE or modifying statements. This increment provides tabular estimates; JSON plans, actual-execution analysis, plan trees, and index recommendations remain deferred. Optimizer markers are not performance verdicts, and read-only transactions do not eliminate every possible function/optimizer side effect. Plan rows/cells retain the existing preview limits.
+- Release build, rustfmt, Clippy, offline FFI validation, C# indicator checks, and application startup were verified without adding tests. Authenticated plan execution remains unverified: the saved local connection was rejected with MySQL error 1045 before EXPLAIN could run. Interactive plan highlighting/pinning and MariaDB execution remain verification gaps. Developer credentials, accounts, databases, and server configuration were not changed.
+
 ## [0.14.0] - 2026-10-19
 
 ### Added

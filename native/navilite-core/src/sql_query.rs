@@ -1,4 +1,5 @@
-//! One bounded SELECT per fresh workload connection. No editor SQL enters logs/history.
+//! One bounded SELECT or tabular EXPLAIN per fresh workload connection.
+//! No editor SQL enters logs/history.
 use crate::{connection, history, query_result::Frame, schema, sql_script};
 use mysql_async::{prelude::Queryable, Conn, Error, Params};
 use serde::Deserialize;
@@ -144,21 +145,41 @@ pub fn prepare_reads(json: &str) -> Result<sql_script::Analysis, String> {
 }
 
 pub fn read(handle: u64, json: &str) -> Result<Vec<u8>, String> {
+    execute(handle, json, false)
+}
+
+pub fn explain(handle: u64, json: &str) -> Result<Vec<u8>, String> {
+    execute(handle, json, true)
+}
+
+fn execute(handle: u64, json: &str, explain: bool) -> Result<Vec<u8>, String> {
     let request = request(json)?;
     let sql = selected_sql(&request)?;
+    // This ceiling bounds plan rows only, without changing the SELECT's estimated
+    // cardinality via sql_select_limit. Normal reads retain their existing ceiling.
+    let row_limit = if explain { 1000 } else { request.row_limit };
     let database = if request.database.is_empty() {
         None
     } else {
         Some(schema::identifier(&request.database)?)
     };
     let pool = connection::workload_pool(handle)?;
-    connection::run(history::user_read(handle, &request.database, async {
-        let mut connection = QueryConnection(Some(pool.get_conn().await.map_err(safe_error)?));
-        let conn = connection.0.as_mut().expect("owned query connection");
-        let outcome = async {
+    let operation = if explain {
+        "User EXPLAIN"
+    } else {
+        "User SELECT"
+    };
+    connection::run(history::user_sql(
+        handle,
+        operation,
+        &request.database,
+        async {
+            let mut connection = QueryConnection(Some(pool.get_conn().await.map_err(safe_error)?));
+            let conn = connection.0.as_mut().expect("owned query connection");
+            let outcome = async {
             // Reserve a workload slot, then clear any state from its previous borrower.
             if !conn.reset().await.map_err(safe_error)? {
-                return Err("Run SELECT requires connection reset support (MySQL 5.7.3+ or MariaDB 10.2.4+).".into());
+                return Err("SQL editor requests require connection reset support (MySQL 5.7.3+ or MariaDB 10.2.4+).".into());
             }
             let mode: String = conn.query_first("SELECT @@SESSION.sql_mode").await.map_err(safe_error)?.ok_or("The server returned no SQL mode.")?;
             let ansi = mode.split(',').any(|m| m.eq_ignore_ascii_case("ANSI_QUOTES"));
@@ -167,18 +188,27 @@ pub fn read(handle: u64, json: &str) -> Result<Vec<u8>, String> {
                 return Err(format!("Match the editor options to the server before running: ANSI_QUOTES={}, Backslash escapes in strings={}.", ansi, escapes));
             }
             if let Some(database) = database { conn.query_drop(format!("USE {database}")).await.map_err(safe_error)?; }
-            // Session-only ceiling for SELECTs without LIMIT. The streaming reader enforces
-            // the same ceiling even when an explicit LIMIT takes precedence on the server.
-            conn.query_drop(format!("SET SESSION sql_select_limit = {}", request.row_limit + 1)).await.map_err(safe_error)?;
+            let sql = if explain {
+                let version: String = conn.query_first("SELECT VERSION()").await.map_err(safe_error)?.ok_or("The server returned no version.")?;
+                // MariaDB supports plain tabular EXPLAIN; MySQL needs an explicit
+                // format to override explain_format defaults in recent releases.
+                let prefix = if version.to_ascii_lowercase().contains("mariadb") { "EXPLAIN " } else { "EXPLAIN FORMAT=TRADITIONAL " };
+                format!("{prefix}{sql}")
+            } else {
+                // Session-only ceiling for SELECTs without LIMIT. Streaming also
+                // enforces the ceiling when an explicit LIMIT takes precedence.
+                conn.query_drop(format!("SET SESSION sql_select_limit = {}", row_limit + 1)).await.map_err(safe_error)?;
+                sql
+            };
             conn.query_drop("START TRANSACTION READ ONLY").await.map_err(safe_error)?;
             let statement = conn.prep(sql.as_bytes()).await.map_err(safe_error)?;
             if statement.num_params() != 0 { return Err("Query parameters are not supported in this editor increment.".into()); }
             let mut result = conn.exec_iter(&statement, Params::Empty).await.map_err(safe_error)?;
-            let mut frame = Frame::new(result.columns_ref(), request.row_limit as usize)?;
+            let mut frame = Frame::new(result.columns_ref(), row_limit as usize)?;
             let mut count = 0;
             let mut more = false;
             while let Some(row) = result.next().await.map_err(safe_error)? {
-                if count == request.row_limit { more = true; break; }
+                if count == row_limit { more = true; break; }
                 frame.push(row)?;
                 count += 1;
             }
@@ -186,7 +216,8 @@ pub fn read(handle: u64, json: &str) -> Result<Vec<u8>, String> {
             drop(result);
             Ok(frame.finish(more))
         }.await;
-        // The RAII guard aborts this session on success, error, or outer timeout.
-        outcome
-    }))
+            // The RAII guard aborts this session on success, error, or outer timeout.
+            outcome
+        },
+    ))
 }

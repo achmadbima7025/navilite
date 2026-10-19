@@ -46,6 +46,15 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiBuffer navilite_sql_query_read(ulong handle, byte* request);
 
         /// <summary>
+        ///  Explains one plain SELECT in tabular format on a fresh read-only session.
+        ///  Returns bounded NVLR v1 plan rows; never issues EXPLAIN ANALYZE.
+        ///  # Safety
+        ///  Request must be valid NUL-terminated UTF-8 JSON for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_sql_query_explain", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiBuffer navilite_sql_query_explain(ulong handle, byte* request);
+
+        /// <summary>
         ///  Preflights all statements as bounded single SELECTs without contacting a database.
         ///  # Safety
         ///  Request must be a valid NUL-terminated UTF-8 JSON string for this call.

@@ -30,6 +30,14 @@ namespace NaviLite.Desktop.Interop
         internal static extern FfiResult navilite_sql_script_analyze(byte* request);
 
         /// <summary>
+        ///  Formats a bounded SELECT script/selection offline, preserving non-whitespace tokens.
+        ///  # Safety
+        ///  Request must be valid NUL-terminated UTF-8 JSON for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_sql_script_format", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_sql_script_format(byte* request);
+
+        /// <summary>
         ///  Executes one bounded SELECT on a fresh read-only session, returning NVLR v1.
         ///  # Safety
         ///  Request must be a valid NUL-terminated UTF-8 JSON string for this call.

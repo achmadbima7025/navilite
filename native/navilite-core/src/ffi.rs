@@ -5,7 +5,7 @@ use crate::{
     page_options::PageOptions,
     profile_transfer,
     profiles::{self, ConnectionProfile},
-    row_insert, row_update, schema, sql_query, sql_script, table_page,
+    row_insert, row_update, schema, sql_format, sql_query, sql_script, table_page,
 };
 use serde_json::{json, Value};
 use std::{
@@ -100,6 +100,16 @@ pub extern "C" fn navilite_core_info() -> FfiResult {
 pub unsafe extern "C" fn navilite_sql_script_analyze(request: *const c_char) -> FfiResult {
     boundary(|| {
         serde_json::to_value(sql_script::analyze(text(request)?)?).map_err(|e| e.to_string())
+    })
+}
+
+/// Formats a bounded SELECT script/selection offline, preserving non-whitespace tokens.
+/// # Safety
+/// Request must be valid NUL-terminated UTF-8 JSON for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_sql_script_format(request: *const c_char) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(sql_format::format(text(request)?)?).map_err(|e| e.to_string())
     })
 }
 

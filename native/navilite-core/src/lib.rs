@@ -11,6 +11,7 @@ mod query_result;
 mod row_insert;
 mod row_update;
 mod schema;
+mod sql_format;
 mod sql_query;
 mod sql_script;
 mod table_page;

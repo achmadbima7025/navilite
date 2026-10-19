@@ -389,6 +389,7 @@
                         <KeyBinding Key="F9" Modifiers="Alt" Command="{Binding SelectCurrentSqlCommand}" />
                         <KeyBinding Key="F9" Modifiers="Control" Command="{Binding RunAllSqlCommand}" />
                         <KeyBinding Key="F9" Modifiers="Control+Shift" Command="{Binding AnalyzeSqlCommand}" />
+                        <KeyBinding Key="F" Modifiers="Control+Shift" Command="{Binding FormatSqlCommand}" />
                     </Grid.InputBindings>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
@@ -400,6 +401,7 @@
                         <Button Content="Open…" Click="OpenSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+O" />
                         <Button Content="Save as…" Click="SaveSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+S — choose a file and confirm replacement" />
                         <Button Content="Analyze script" Command="{Binding AnalyzeSqlCommand}" ToolTip="Ctrl+Shift+F9 — find all statement boundaries offline" />
+                        <Button Content="Format SQL" Command="{Binding FormatSqlCommand}" ToolTip="Ctrl+Shift+F — format plain SELECT scripts or selected statements offline; Ctrl+Z undoes the edit" />
                         <Button Content="Select current" Command="{Binding SelectCurrentSqlCommand}" ToolTip="Alt+F9 — highlight the statement at the caret" />
                         <Button Content="Run SELECT" Command="{Binding RunSqlCommand}" ToolTip="F9 — run exactly one SELECT from selected text, or the statement at the caret, in a fresh read-only transaction" />
                         <Button Content="Run All SELECTs" Command="{Binding RunAllSqlCommand}" ToolTip="Ctrl+F9 — preflight the entire script, then run up to 8 SELECT statements in source order" />

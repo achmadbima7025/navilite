@@ -4,6 +4,19 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-19
+
+### Added
+
+- Offline Format SQL (Ctrl+Shift+F) for complete plain SELECT scripts or selected statements, with top-level clause/comma layout, four-space continuation indentation, and preserved keyword/identifier capitalization.
+- Quote-mode-aware scanning, exact preservation of literal/identifier/comment lexemes, rejection of selections that cut protected tokens, preserved selection-edge whitespace, and whole-document token comparison before returning an edit. Function-call adjacency is retained; non-ASCII whitespace outside protected lexemes is rejected rather than normalized as identifier text.
+- UTF-16 caret mapping and a WPF change block that groups formatting into one undo operation. Existing result snapshots/pins are preserved, and formatting never contacts a database or logs SQL text.
+- Additive `navilite_sql_script_format` FFI with generated C# bindings and an optional `scripts/Build.ps1 -OutputDirectory` for separate desktop output while another application instance remains open.
+
+### Scope
+
+- Uses the existing plain SELECT policy; DELIMITER directives, unsupported statements, executable/hint comments, unbalanced parentheses, more than 64 nested parentheses, more than 100,000 lexical tokens, and input/output documents above 1 MiB UTF-8 are rejected. Nested expressions/subqueries retain a compact layout; this is not SQL syntax validation or a general SQL grammar formatter. Quote/escape options are explicit editor settings. Selected scope boundaries must align with whole tokens; other document content is retained. Interactive Undo/Redo remains a manual UI verification gap.
+
 ## [0.13.0] - 2026-10-19
 
 ### Added

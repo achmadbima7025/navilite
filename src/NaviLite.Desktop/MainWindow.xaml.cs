@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
         _viewModel.RowsCopyRequested += text => Clipboard.SetText(text);
         _viewModel.DefinitionCopyRequested += text => Clipboard.SetText(text);
+        _viewModel.SqlFormattingRequested += ApplySqlFormatting;
         _viewModel.SqlSelectionRequested += span => Dispatcher.BeginInvoke(new Action(() =>
         {
             ScriptEditor.Select(span.StartUtf16, span.LengthUtf16);
@@ -223,6 +224,21 @@ public partial class MainWindow : Window
         _viewModel.SqlCaretUtf16 = editor.CaretIndex;
         _viewModel.SqlSelectionStartUtf16 = editor.SelectionStart;
         _viewModel.SqlSelectionLengthUtf16 = editor.SelectionLength;
+    }
+
+    private void ApplySqlFormatting(SqlFormatEdit edit, bool preserveSelection)
+    {
+        ScriptEditor.BeginChange();
+        try
+        {
+            ScriptEditor.Select(edit.StartUtf16, edit.LengthUtf16);
+            ScriptEditor.SelectedText = edit.Replacement;
+            if (preserveSelection) ScriptEditor.Select(edit.StartUtf16, edit.Replacement.Length);
+            else ScriptEditor.Select(edit.CaretUtf16, 0);
+        }
+        finally { ScriptEditor.EndChange(); }
+        ScriptEditor.Focus();
+        ScriptEditor.ScrollToLine(Math.Max(0, ScriptEditor.GetLineIndexFromCharacterIndex(ScriptEditor.CaretIndex)));
     }
 
     private async void NewSql_Click(object sender, RoutedEventArgs e) => await NewSqlAsync();

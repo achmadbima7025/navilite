@@ -372,6 +372,10 @@ pub(crate) fn byte_offset(text: &str, utf16: u32) -> Result<usize, String> {
 }
 
 impl Statement {
+    pub(crate) fn bounds(&self) -> (u32, u32) {
+        (self.start_utf16, self.length_utf16)
+    }
+
     pub(crate) fn source<'a>(&self, script: &'a str) -> Result<&'a str, String> {
         Ok(&script[byte_offset(script, self.start_utf16)?
             ..byte_offset(script, self.start_utf16 + self.length_utf16)?])

@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.12.0
+## Status aplikasi: 0.13.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -165,7 +165,15 @@ Inkrement 0.12.0 menambahkan eksekusi SELECT terbatas:
 - Hasil terakhir tetap ditandai sebagai snapshot ketika teks diedit atau run berikutnya gagal. Dokumen baru/berkas lain dan disconnect menghapus hasil serta melepaskan buffer. History menyimpan durasi/status dan `[User SQL text omitted]`, tanpa isi SQL/hasil. Error SQL hanya menampilkan nomor error server; detail pesan yang mungkin mengandung literal disembunyikan.
 - Driver dipatok tepat pada mysql_async 0.37.1. Penjaga kepemilikan sesi di Rust memulai lalu langsung membatalkan future disconnect agar socket yang ditandai disconnected dibuang, termasuk pada timeout, tanpa menjadwalkan drain sisa hasil. Urutan internal driver tersebut harus diperiksa ulang sebelum upgrade; disconnect biasa menguras hasil yang belum dibaca.
 
-SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production untuk perintah pengubah data, penyuntingan data, kelompok filter bertingkat, eksekusi SQL umum/Run All, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete/formatting SQL, multi-dokumen/result pinning, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; Run SELECT tetap memakai transaksi read-only pada semua lingkungan.
+Inkrement 0.13.0 menambahkan Run All SELECTs dan tab hasil yang dapat dipin:
+
+- Run All SELECTs (Ctrl+F9) selalu memakai seluruh skrip, dengan 1–8 statement. Rust memeriksa semua rentang statement memakai aturan Run SELECT sebelum kueri pertama dikirim. DML/DDL, CTE/WITH, variabel, hint/executable comment, atau konstruksi lain di luar kebijakan SELECT menolak batch. DELIMITER boleh memisahkan SELECT; satu rentang yang berisi beberapa statement ber-delimiter standar tetap ditolak. Pemeriksaan ini leksikal; sintaks, akses, dan SQL mode sesi masih diperiksa saat setiap statement dijalankan.
+- Statement dijalankan berurutan dengan database, batas baris, dan opsi editor yang ditangkap pada awal run. Setiap statement memperoleh sesi read-only yang direset dan ditutup sendiri. Statement tidak berbagi transaksi, variabel, atau snapshot database yang konsisten; perubahan oleh sesi lain dapat terlihat antar-statement. Error menghentikan batch pada statement yang gagal, dan hasil yang sudah diterima tetap ditampilkan. Stop after current menyelesaikan permintaan aktif lalu melewati sisanya; menutup jendela juga meminta stop ini sebelum menunggu operasi aktif. Stop tidak langsung membatalkan kueri server atau mengirim KILL.
+- Setiap hasil mempunyai tab, nomor snapshot, konteks koneksi/database, durasi, serta grid kolom sendiri. Pilih tab lalu Pin / unpin untuk mempertahankannya pada run berikutnya atau saat membuat/membuka dokumen SQL lain. Pin tidak menduplikasi buffer. Close result dapat menutup tab terpilih termasuk yang dipin; Clear unpinned hanya menutup hasil yang tidak dipin. Disconnect dan keluar aplikasi melepaskan semuanya; hasil tidak disimpan otomatis ke disk.
+- Maksimal 8 hasil tersimpan termasuk pin dan 32 MiB frame native. Jumlah pin ditambah jumlah statement calon batch diperiksa sebelum eksekusi. Batas memori diperiksa untuk setiap hasil baru; bila tidak muat, buffer baru dilepas dan batch dihentikan. Batas ini tidak mencakup frame yang sedang masuk (maksimal 8 MiB) atau overhead rendering WPF. Hasil pertama yang diterima mengganti hasil lama yang tidak dipin; bila preflight atau kueri pertama gagal, hasil lama tetap ada. Kegagalan di tengah batch mempertahankan hasil batch yang telah diterima.
+- F9 tetap menjalankan satu SELECT dari kursor/seleksi, Alt+F9 menyorot statement, dan analisis offline pindah ke Ctrl+Shift+F9. Isi SQL tidak ditambahkan ke metadata hasil atau history; preview statement tetap berada dalam memori editor.
+
+SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production untuk perintah pengubah data, penyuntingan data, kelompok filter bertingkat, eksekusi SQL umum di luar SELECT, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete/formatting SQL, multi-dokumen, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; semua eksekusi editor tetap memakai transaksi read-only.
 
 ## Build dan jalankan
 
@@ -203,6 +211,8 @@ Struktur kode:
 | `native/navilite-core/src/query_result.rs` | Pengodean NVLR inkremental dari metadata dan baris hasil prepared statement |
 | `src/NaviLite.Desktop/ViewModels/SqlEditorViewModel.cs` | Dokumen SQL, perubahan belum disimpan, opsi lexer, dan pemilihan statement |
 | `src/NaviLite.Desktop/Services/SqlScriptFiles.cs` | Baca UTF-8 terbatas dan penyimpanan atomik dokumen SQL |
+| `src/NaviLite.Desktop/Models/SqlResultSnapshot.cs` | Kepemilikan frame hasil, metadata snapshot tanpa SQL, dan status pin |
+| `src/NaviLite.Desktop/SqlResultView.xaml` | Grid baca saja dengan kolom independen untuk setiap tab hasil |
 | `src/NaviLite.Desktop/Models/NativePage.cs` | Kepemilikan buffer native, validasi frame, dan decoding sel |
 | `src/NaviLite.Desktop/CellInspectorWindow.xaml` | Viewer teks/JSON/hex baca saja dan penyimpanan byte yang dimuat |
 | `src/NaviLite.Desktop/Services/RowCopy.cs` | Pemformatan CSV/TSV/JSON dari frame dengan batas output clipboard |
@@ -241,6 +251,7 @@ Setiap fungsi operasi mengembalikan `FfiResult { code, data }`. `code = 0` berar
 | `navilite_rows_update_sql` | Page ID dan array nilai yang sama; skrip UPDATE memakai seluruh primary key asli dan LIMIT 1, tanpa eksekusi |
 | `navilite_sql_script_analyze` | JSON `{script,caretUtf16,backslashEscapes,ansiQuotes}`; daftar rentang UTF-16, currentIndex berbasis nol/null, jumlah directive dan panjang dokumen; offline |
 | `navilite_sql_query_read` | Handle + JSON `{script,caretUtf16,selectionStartUtf16,selectionLengthUtf16,database,rowLimit,backslashEscapes,ansiQuotes}`; FfiBuffer NVLR v1 tanpa page lease, satu SELECT read-only |
+| `navilite_sql_script_prepare_reads` | JSON skrip/opsi lexer dengan caret; analisis rentang seluruh 1–8 SELECT yang lolos guard satu statement; offline, tanpa koneksi database |
 | `navilite_buffer_free` | Pointer dan panjang asli `FfiBuffer`; pembebasan sekali oleh SafeHandle |
 
 Pada API awal ini, `conn_open` menerima konfigurasi secara langsung agar profil baru bisa dibuka sebelum disimpan. Tidak ada kredensial yang dikembalikan ke UI. Sandi null berarti memakai Credential Manager jika profil mengingat sandi; string kosong berarti sandi kosong eksplisit. Pratinjau data memakai workload pool, terpisah dari metadata. Koneksi interaktif yang dipertahankan per tab belum diimplementasikan.
@@ -285,10 +296,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.12.0
+./scripts/Set-Version.ps1 -Version 0.13.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.12.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.13.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 

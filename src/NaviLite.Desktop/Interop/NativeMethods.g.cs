@@ -37,6 +37,14 @@ namespace NaviLite.Desktop.Interop
         [DllImport(__DllName, EntryPoint = "navilite_sql_query_read", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern FfiBuffer navilite_sql_query_read(ulong handle, byte* request);
 
+        /// <summary>
+        ///  Preflights all statements as bounded single SELECTs without contacting a database.
+        ///  # Safety
+        ///  Request must be a valid NUL-terminated UTF-8 JSON string for this call.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "navilite_sql_script_prepare_reads", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern FfiResult navilite_sql_script_prepare_reads(byte* request);
+
         [DllImport(__DllName, EntryPoint = "navilite_profiles_list", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern FfiResult navilite_profiles_list();
 

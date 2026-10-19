@@ -111,6 +111,16 @@ pub unsafe extern "C" fn navilite_sql_query_read(handle: u64, request: *const c_
     buffer_boundary(|| sql_query::read(handle, text(request)?))
 }
 
+/// Preflights all statements as bounded single SELECTs without contacting a database.
+/// # Safety
+/// Request must be a valid NUL-terminated UTF-8 JSON string for this call.
+#[no_mangle]
+pub unsafe extern "C" fn navilite_sql_script_prepare_reads(request: *const c_char) -> FfiResult {
+    boundary(|| {
+        serde_json::to_value(sql_query::prepare_reads(text(request)?)?).map_err(|e| e.to_string())
+    })
+}
+
 #[no_mangle]
 pub extern "C" fn navilite_profiles_list() -> FfiResult {
     boundary(|| serde_json::to_value(profiles::list()?).map_err(|e| e.to_string()))

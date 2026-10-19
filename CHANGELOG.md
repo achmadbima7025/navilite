@@ -4,6 +4,20 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-19
+
+### Added
+
+- Run All SELECTs (Ctrl+F9) for 1–8 statements in source order. Native offline preflight applies the single-statement read policy to every source span before any query runs, including rechecking spans separated by custom DELIMITER directives. Unsupported statements reject the batch before execution; server syntax/permission/runtime errors stop at the failing statement.
+- A result tab per successful statement, snapshot sequence/context/duration, Pin/Unpin, Close result, and Clear unpinned actions. Pins survive edits, reruns, and document replacement; disconnect and application exit release all snapshots.
+- Bounds of eight stored results including pins and 32 MiB of native result frames. A first accepted result replaces previous unpinned results; initial failures retain previous results and later failures retain completed batch results. Rejected frames are released immediately.
+- Stop after current for batch execution, preserving completed results and skipping subsequent statements; closing the window also requests this stop before waiting for the active operation. F9 remains a single SELECT; Alt+F9 selects the current statement and offline analysis moves to Ctrl+Shift+F9.
+- Additive `navilite_sql_script_prepare_reads` FFI, generated C# bindings, and reusable WPF result views with independent column sets.
+
+### Scope
+
+- SELECT policy, 1 MiB script, per-query row/column/frame/packet limits and 10-second client timeout remain unchanged. Each statement uses a separate reset read-only session; batches do not share transactions, variables, or a consistent database snapshot. Stop after current does not interrupt the active request or issue server KILL. Stored-frame limits exclude an in-flight result and WPF rendering overhead. SQL text is not retained in result metadata or query history. Authenticated batch execution and interactive result-tab checks require a configured database connection.
+
 ## [0.12.0] - 2026-10-19
 
 ### Added

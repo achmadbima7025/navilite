@@ -40,7 +40,6 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainViewModel.Page)) RebuildGridColumns();
-            if (args.PropertyName == nameof(MainViewModel.SqlResult)) RebuildSqlResultColumns();
         };
         _viewModel.PasswordClearRequested += () =>
         {
@@ -226,22 +225,6 @@ public partial class MainWindow : Window
         _viewModel.SqlSelectionLengthUtf16 = editor.SelectionLength;
     }
 
-    private void RebuildSqlResultColumns()
-    {
-        SqlResultGrid.Columns.Clear();
-        if (_viewModel.SqlResult is not { } result) return;
-        for (int index = 0; index < result.Columns.Count; index++)
-        {
-            var column = result.Columns[index];
-            SqlResultGrid.Columns.Add(new DataGridTextColumn
-            {
-                Header = new TextBlock { Text = column.Name, ToolTip = column.SqlType },
-                Binding = new Binding($"[{index}]") { Mode = BindingMode.OneWay },
-                Width = new DataGridLength(150), MinWidth = 70, MaxWidth = 600
-            });
-        }
-    }
-
     private async void NewSql_Click(object sender, RoutedEventArgs e) => await NewSqlAsync();
     private async void OpenSql_Click(object sender, RoutedEventArgs e) => await OpenSqlAsync();
     private async void SaveSql_Click(object sender, RoutedEventArgs e) => await SaveSqlAsync();
@@ -302,6 +285,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (_closing) return;
         _closing = true;
+        if (_viewModel.StopSqlBatchCommand.CanExecute(null)) _viewModel.StopSqlBatchCommand.Execute(null);
         IsEnabled = false;
         try
         {

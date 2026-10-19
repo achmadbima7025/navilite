@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:NaviLite.Desktop.Models"
+        xmlns:local="clr-namespace:NaviLite.Desktop"
         Title="{Binding WindowTitle}" Width="1240" Height="820" MinWidth="1040" MinHeight="740"
         WindowStartupLocation="CenterScreen" Background="#F4F6FA" Foreground="#17243B"
         FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing">
@@ -386,7 +387,8 @@
                     <Grid.InputBindings>
                         <KeyBinding Key="F9" Command="{Binding RunSqlCommand}" />
                         <KeyBinding Key="F9" Modifiers="Alt" Command="{Binding SelectCurrentSqlCommand}" />
-                        <KeyBinding Key="F9" Modifiers="Control" Command="{Binding AnalyzeSqlCommand}" />
+                        <KeyBinding Key="F9" Modifiers="Control" Command="{Binding RunAllSqlCommand}" />
+                        <KeyBinding Key="F9" Modifiers="Control+Shift" Command="{Binding AnalyzeSqlCommand}" />
                     </Grid.InputBindings>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
@@ -397,9 +399,11 @@
                         <Button Content="New" Click="NewSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+N" />
                         <Button Content="Open…" Click="OpenSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+O" />
                         <Button Content="Save as…" Click="SaveSql_Click" IsEnabled="{Binding CanUseSqlEditor}" ToolTip="Ctrl+S — choose a file and confirm replacement" />
-                        <Button Content="Analyze script" Command="{Binding AnalyzeSqlCommand}" ToolTip="Ctrl+F9 — find all statement boundaries" />
+                        <Button Content="Analyze script" Command="{Binding AnalyzeSqlCommand}" ToolTip="Ctrl+Shift+F9 — find all statement boundaries offline" />
                         <Button Content="Select current" Command="{Binding SelectCurrentSqlCommand}" ToolTip="Alt+F9 — highlight the statement at the caret" />
                         <Button Content="Run SELECT" Command="{Binding RunSqlCommand}" ToolTip="F9 — run exactly one SELECT from selected text, or the statement at the caret, in a fresh read-only transaction" />
+                        <Button Content="Run All SELECTs" Command="{Binding RunAllSqlCommand}" ToolTip="Ctrl+F9 — preflight the entire script, then run up to 8 SELECT statements in source order" />
+                        <Button Content="Stop after current" Command="{Binding StopSqlBatchCommand}" ToolTip="Finish the active SELECT, then skip remaining statements. Each SELECT has a 10 second client timeout." />
                     </WrapPanel>
                     <WrapPanel Grid.Row="2" IsEnabled="{Binding CanUseSqlEditor}" Margin="0,0,0,8">
                         <CheckBox Content="Backslash escapes in strings" IsChecked="{Binding SqlBackslashEscapes}" Margin="0,0,16,0" />
@@ -428,14 +432,19 @@
                         </DataGrid.Columns>
                         </DataGrid>
                       </TabItem>
-                      <TabItem Header="SELECT result · read only">
+                      <TabItem Header="SELECT results · read only">
                         <DockPanel Margin="6">
                             <TextBlock DockPanel.Dock="Top" Text="{Binding SqlRunStatus}" TextWrapping="Wrap" Foreground="#75849A" Margin="0,0,0,8" />
-                            <DataGrid x:Name="SqlResultGrid" ItemsSource="{Binding SqlResult.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
-                                      CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionUnit="FullRow"
-                                      EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                                      ScrollViewer.CanContentScroll="True" ClipboardCopyMode="IncludeHeader" GridLinesVisibility="Horizontal" RowHeight="29"
-                                      HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD" AutomationProperties.Name="Read-only SQL query result" />
+                            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <Button Content="Pin / unpin" Command="{Binding PinSqlResultCommand}" Padding="10,5" ToolTip="Keep this snapshot across reruns and document replacement; disconnect releases every snapshot" />
+                                <Button Content="Close result" Command="{Binding CloseSqlResultCommand}" Padding="10,5" />
+                                <Button Content="Clear unpinned" Command="{Binding ClearUnpinnedSqlResultsCommand}" Padding="10,5" />
+                                <TextBlock Text="{Binding SqlResultsSummary}" Foreground="#75849A" VerticalAlignment="Center" />
+                            </WrapPanel>
+                            <TabControl ItemsSource="{Binding SqlResults}" SelectedItem="{Binding SelectedSqlResult, Mode=TwoWay}" AutomationProperties.Name="SQL result snapshots">
+                                <TabControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" /></DataTemplate></TabControl.ItemTemplate>
+                                <TabControl.ContentTemplate><DataTemplate><local:SqlResultView /></DataTemplate></TabControl.ContentTemplate>
+                            </TabControl>
                         </DockPanel>
                       </TabItem>
                     </TabControl>

@@ -106,7 +106,7 @@ fn selected_sql(request: &Request) -> Result<String, String> {
     Ok(statement.source(source)?.to_owned())
 }
 
-pub fn read(handle: u64, json: &str) -> Result<Vec<u8>, String> {
+fn request(json: &str) -> Result<Request, String> {
     if json.len() > 8 * 1024 * 1024 {
         return Err("SQL execution input is too large.".into());
     }
@@ -115,6 +115,36 @@ pub fn read(handle: u64, json: &str) -> Result<Vec<u8>, String> {
     if !(1..=1000).contains(&request.row_limit) {
         return Err("SQL row limit must be between 1 and 1000.".into());
     }
+    Ok(request)
+}
+
+/// Offline preflight of every statement, using exactly the single-read selection policy.
+pub fn prepare_reads(json: &str) -> Result<sql_script::Analysis, String> {
+    let mut request = request(json)?;
+    if request.selection_length_utf16 != 0 {
+        return Err("Run All prepares the entire script, not a text selection.".into());
+    }
+    let analysis = sql_script::analyze_script(
+        &request.script,
+        request.caret_utf16,
+        request.backslash_escapes,
+        request.ansi_quotes,
+    )?;
+    if analysis.statements.is_empty() || analysis.statements.len() > 8 {
+        return Err("Run All requires 1–8 SELECT statements. Use Run SELECT for a single statement in a larger script.".into());
+    }
+    for (index, statement) in analysis.statements.iter().enumerate() {
+        (
+            request.selection_start_utf16,
+            request.selection_length_utf16,
+        ) = statement.bounds();
+        selected_sql(&request).map_err(|message| format!("Statement {}: {message}", index + 1))?;
+    }
+    Ok(analysis)
+}
+
+pub fn read(handle: u64, json: &str) -> Result<Vec<u8>, String> {
+    let request = request(json)?;
     let sql = selected_sql(&request)?;
     let database = if request.database.is_empty() {
         None

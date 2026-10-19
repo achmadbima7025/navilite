@@ -95,7 +95,7 @@ public sealed partial class MainViewModel
         _sqlPath = path;
         SqlCaretUtf16 = 0;
         ClearSqlAnalysis();
-        ClearSqlResult();
+        ClearSqlResult(false);
         NotifySqlDocument();
         SelectedWorkspaceTab = 4;
     }

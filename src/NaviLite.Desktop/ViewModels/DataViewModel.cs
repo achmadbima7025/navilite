@@ -20,7 +20,7 @@ public sealed partial class MainViewModel
         new("startsWith", "Starts with"), new("greaterThan", "Greater than"), new("lessThan", "Less than"),
         new("isNull", "IS NULL", false), new("isNotNull", "IS NOT NULL", false)
     ];
-    public MatchOption[] MatchModes { get; } = [new("all", "Match all conditions (AND)"), new("any", "Match any condition (OR)")];
+    public MatchOption[] MatchModes { get; } = [new("all", "Match all (AND)"), new("any", "Match any (OR)")];
     public string MatchMode { get => _matchMode; set { Set(ref _matchMode, value ?? "all"); NotifyQueryDraft(); } }
     public AsyncCommand AddFilterCommand { get; }
     public AsyncCommand AddSortCommand { get; }
@@ -33,7 +33,8 @@ public sealed partial class MainViewModel
     public string QuerySummary =>
         (_appliedQuery.Filters.Count > 0 ? $"Filters: {_appliedQuery.Filters.Count} · match {_appliedQuery.MatchMode}" : "All rows") +
         (_appliedQuery.Sorts.Count > 0 ? " · Sort: " + string.Join(", ", _appliedQuery.Sorts.Select(sort => $"{sort.Column} {sort.Direction.ToUpperInvariant()}")) : " · Default order");
-    public string QueryDraftMessage => QueryFromControls().Matches(_appliedQuery) ? "" : "Changes pending. Choose Apply to refresh the data.";
+    public bool HasPendingQuery => !QueryFromControls().Matches(_appliedQuery);
+    public string QueryDraftMessage => HasPendingQuery ? "Changes pending · Apply to refresh" : "";
     public PageSort? AppliedSort(string column) => _appliedQuery.Sorts.FirstOrDefault(sort => sort.Column == column);
     public int SortPriority(string column)
     {
@@ -73,6 +74,7 @@ public sealed partial class MainViewModel
     private void NotifyQueryDraft()
     {
         Changed(nameof(QueryDraftMessage));
+        Changed(nameof(HasPendingQuery));
         RefreshCommands();
     }
 
@@ -81,6 +83,7 @@ public sealed partial class MainViewModel
         _appliedQuery = query;
         Changed(nameof(QuerySummary));
         Changed(nameof(QueryDraftMessage));
+        Changed(nameof(HasPendingQuery));
     }
 
     private void ResetQueryState()
@@ -129,18 +132,65 @@ public sealed partial class MainViewModel
         ResetQueryState();
     }
 
-    public Task SortByAsync(string column)
+    public Task SortByAsync(string column, bool additive = false)
     {
         if (!CanQuery || !QueryColumns.Any(option => option.Name == column)) return Task.CompletedTask;
         PageSort? sort = AppliedSort(column) is { } previous
             ? previous.Direction == "asc" ? new(column, "desc") : null
             : new(column, "asc");
-        PageSort[] sorts = sort is null ? [] : [sort];
+        var sorts = additive ? _appliedQuery.Sorts.ToList() : [];
+        int index = sorts.FindIndex(value => value.Column == column);
+        if (index >= 0)
+        {
+            if (sort is null) sorts.RemoveAt(index);
+            else sorts[index] = sort;
+        }
+        else if (sort is not null)
+        {
+            if (sorts.Count == 8) { Status = "Sort order is limited to 8 columns. Remove a sort before adding another."; return Task.CompletedTask; }
+            sorts.Add(sort);
+        }
         return RunAsync(async () =>
         {
             await QueryAtStartAsync(_appliedQuery with { Sorts = sorts });
             SetSortDrafts(sorts);
         });
+    }
+
+    internal IReadOnlyList<PageFilter> AppliedFilters(string column) => _appliedQuery.Filters.Where(filter => filter.Column == column).ToArray();
+
+    public void AddColumnFilter(string column)
+    {
+        if (!CanQuery || !QueryColumns.Any(option => option.Name == column)) return;
+        var filter = DraftFilters.FirstOrDefault(value => value.Column.Length == 0);
+        if (filter is null)
+        {
+            if (DraftFilters.Count == 16) { Status = "Filters are limited to 16 conditions."; return; }
+            filter = NewFilter();
+            DraftFilters.Add(filter);
+        }
+        filter.Operator = "equals";
+        filter.Value = "";
+        filter.Column = column;
+        NotifyQueryDraft();
+    }
+
+    public void ClearColumnFilters(string column)
+    {
+        if (!CanQuery) return;
+        foreach (var filter in DraftFilters.Where(filter => filter.Column == column).ToArray()) DraftFilters.Remove(filter);
+        NotifyQueryDraft();
+    }
+
+    public void SetQuickColumnFilter(string column, string value)
+    {
+        if (!CanQuery) return;
+        var filters = DraftFilters.Where(filter => filter.Column == column).ToArray();
+        if (filters.Length > 1) return;
+        if (value.Length == 0) { ClearColumnFilters(column); return; }
+        if (filters.Length == 0) AddColumnFilter(column);
+        var filter = DraftFilters.FirstOrDefault(filter => filter.Column == column);
+        if (filter is not null && filter.Snapshot().Value is not null) filter.Value = value;
     }
 
     private FilterDraft NewFilter() => new(QueryColumns, FilterOperators, NotifyQueryDraft);

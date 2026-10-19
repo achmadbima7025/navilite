@@ -4,6 +4,20 @@ NaviLite follows [Semantic Versioning 2.0.0](https://semver.org/). While the maj
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-19
+
+### Changed
+
+- Compact data workspace with two-row column headers: column name/direction/priority above a literal quick filter. Enter or Apply submits the draft; typing does not send queries. Column popovers provide operators and multiple conditions, while Query options retains the complete AND/OR filter and multi-sort editor, including access from Form view.
+- Header sorting cycles ASC/DESC/default; Shift-click edits one column within the applied sort order, up to eight columns. Clearing a quick input removes its condition; explicit empty strings use Equals with a blank value in the popover. Multiple and NULL conditions display read-only hints in the quick field. Pending and applied filters have distinct header indicators.
+- Removed the permanent large query panel, moved pagination into a compact shared footer, reduced toolbar/title spacing, grouped connection import/export in a menu, and added a resizable navigation pane.
+- Reuse headers for matching column metadata to retain widths/display order across pagination, refresh, and query changes. Header subscriptions are disposed on replacement/close; templated header controls retain column virtualization. Busy quick inputs become read-only so focus is preserved without forcibly restoring it after a request. Reused empty condition slots reset stale operator/value state; quick fields respect the sixteen-condition limit.
+
+### Verification
+
+- Release build, rustfmt, Clippy, static review, header-model inspection, responsive application startup, and offline rendering of compiled WPF views with illustrative data. At the same 1240 × 780 client area, the rendered grid height increased from about 142 to 423 pixels; a 1040 × 700 layout and both query popovers were also inspected. These are layout measurements, not application performance benchmarks.
+- Native desktop automation could not initialize in this environment. Live keyboard/drag/popup behavior and authenticated filtering/sorting remain manual verification gaps; the previously rejected local connection was not altered or retried. No tests or test projects were added, and no developer database, account, credential, or server configuration was changed.
+
 ## [0.15.0] - 2026-10-19
 
 ### Added

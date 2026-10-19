@@ -15,6 +15,7 @@ namespace NaviLite.Desktop;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel = new();
+    private readonly List<ColumnQueryHeaderViewModel> _columnHeaders = [];
     private bool _clearingPassword;
     private bool _canClose;
     private bool _closing;
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Closed += (_, _) => ClearColumnHeaders();
         DataContext = _viewModel;
         _viewModel.CellInspectionRequested += inspection => new CellInspectorWindow(inspection) { Owner = this }.ShowDialog();
         _viewModel.RowsCopyRequested += text => Clipboard.SetText(text);
@@ -40,7 +42,11 @@ public partial class MainWindow : Window
         };
         _viewModel.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(MainViewModel.Page)) RebuildGridColumns();
+            if (args.PropertyName == nameof(MainViewModel.Page))
+            {
+                QueryOptionsToggle.IsChecked = false;
+                RebuildGridColumns();
+            }
         };
         _viewModel.PasswordClearRequested += () =>
         {
@@ -60,47 +66,46 @@ public partial class MainWindow : Window
 
     private void RebuildGridColumns()
     {
-        PreviewGrid.Columns.Clear();
+        if (_viewModel.Page is { } current && _columnHeaders.Count == current.Columns.Count &&
+            _columnHeaders.Zip(current.Columns).All(pair => pair.First.Name == pair.Second.Name && pair.First.SqlType == pair.Second.SqlType))
+        {
+            foreach (var header in _columnHeaders) header.Refresh();
+            return;
+        }
+        ClearColumnHeaders();
         if (_viewModel.Page is not { } page) return;
         for (int index = 0; index < page.Columns.Count; index++)
         {
             var column = page.Columns[index];
-            int priority = _viewModel.SortPriority(column.Name);
-            var sort = _viewModel.AppliedSort(column.Name);
-            var header = new TextBlock { Text = priority > 0 ? $"{column.Name} · #{priority}" : column.Name, ToolTip = column.SqlType };
+            var header = new ColumnQueryHeaderViewModel(_viewModel, column);
+            _columnHeaders.Add(header);
             PreviewGrid.Columns.Add(new DataGridTextColumn
             {
                 Header = header,
+                HeaderTemplate = (DataTemplate)FindResource("ColumnQueryHeaderTemplate"),
                 Binding = new Binding($"[{index}]") { Mode = BindingMode.OneWay },
                 SortMemberPath = column.Name,
-                SortDirection = sort is not null
-                    ? sort.Direction == "desc" ? ListSortDirection.Descending : ListSortDirection.Ascending
-                    : null,
-                Width = new DataGridLength(150),
-                MinWidth = 70,
+                Width = new DataGridLength(160),
+                MinWidth = 110,
                 MaxWidth = 600
             });
         }
     }
 
+    private void ClearColumnHeaders()
+    {
+        foreach (var header in _columnHeaders) header.Dispose();
+        _columnHeaders.Clear();
+        PreviewGrid.Columns.Clear();
+    }
+
     private async void PreviewGrid_Sorting(object sender, DataGridSortingEventArgs e)
     {
         e.Handled = true;
-        await _viewModel.SortByAsync(e.Column.SortMemberPath);
+        await _viewModel.SortByAsync(e.Column.SortMemberPath, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
     }
 
-    private void RemoveQueryRow_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement control) return;
-        if (control.DataContext is FilterDraft filter) _viewModel.RemoveFilter(filter);
-        else if (control.DataContext is SortDraft sort) _viewModel.RemoveSort(sort);
-    }
-
-    private void MoveSort_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: SortDraft sort, Tag: string value } && int.TryParse(value, out int delta))
-            _viewModel.MoveSort(sort, delta);
-    }
+    private void CloseQueryOptions_Click(object sender, RoutedEventArgs e) => QueryOptionsToggle.IsChecked = false;
 
     private async void PreviewGrid_KeyDown(object sender, KeyEventArgs e)
     {

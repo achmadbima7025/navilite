@@ -46,27 +46,43 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
         </Style>
+        <Style x:Key="CompactToggle" TargetType="ToggleButton">
+            <Setter Property="Padding" Value="10,5" /><Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Background" Value="White" /><Setter Property="BorderBrush" Value="#D7DFEB" />
+            <Setter Property="Foreground" Value="#52627B" /><Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers><Trigger Property="IsChecked" Value="True"><Setter Property="Background" Value="#E8F4F0" /><Setter Property="BorderBrush" Value="#177D70" /></Trigger></Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="ColumnQueryHeaderTemplate"><local:ColumnQueryHeader /></DataTemplate>
+        <Style x:Key="InlineColumnHeader" TargetType="DataGridColumnHeader">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="#F5F7FA" /><Setter Property="BorderBrush" Value="#E0E6EF" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+        </Style>
     </Window.Resources>
     <DockPanel>
-        <Border DockPanel.Dock="Top" Background="White" BorderBrush="#E0E6F0" BorderThickness="0,0,0,1" Padding="24,18">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="#E0E6F0" BorderThickness="0,0,0,1" Padding="18,10">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#177D70" CornerRadius="8" Width="36" Height="36" Margin="0,0,12,0">
-                        <TextBlock Text="N" Foreground="White" FontSize="23" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border Background="#177D70" CornerRadius="7" Width="30" Height="30" Margin="0,0,10,0">
+                        <TextBlock Text="N" Foreground="White" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="NaviLite" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Text="MYSQL / MARIADB" Foreground="#8090A7" FontSize="11" Margin="18,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Text="NaviLite" FontSize="21" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="MYSQL / MARIADB" Foreground="#8090A7" FontSize="10" Margin="14,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Import connections…" Click="ImportConnections_Click" IsEnabled="{Binding CanEdit}" ToolTip="Preview and add connection metadata from a NaviLite file" />
-                    <Button Content="Export connections…" Click="ExportConnections_Click" IsEnabled="{Binding CanExportConnections}" ToolTip="Export all saved profiles as metadata without passwords" />
-                    <Button Content="New connection" Command="{Binding NewCommand}" />
+                    <Menu Background="Transparent" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <MenuItem Header="Connections" Padding="10,6">
+                            <MenuItem Header="Import connections…" Click="ImportConnections_Click" IsEnabled="{Binding CanEdit}" />
+                            <MenuItem Header="Export connections…" Click="ExportConnections_Click" IsEnabled="{Binding CanExportConnections}" />
+                        </MenuItem>
+                    </Menu>
+                    <Button Content="+ New connection" Command="{Binding NewCommand}" Padding="12,6" />
                     <TextBlock Text="{Binding AppVersion, StringFormat=v{0}}" Foreground="#7D8BA1" Margin="12,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
             </Grid>
         </Border>
-        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="#E0E6F0" BorderThickness="0,1,0,0" Padding="20,10">
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="#E0E6F0" BorderThickness="0,1,0,0" Padding="14,6">
             <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="3" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <ProgressBar Height="3" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" Foreground="#177D70" />
@@ -74,10 +90,10 @@
             </Grid>
         </Border>
         <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-            <Border Background="White" BorderBrush="#E0E6F0" BorderThickness="0,0,1,0" Padding="18,24">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="240" MinWidth="200" MaxWidth="360" /><ColumnDefinition Width="5" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Border Background="White" BorderBrush="#E0E6F0" BorderThickness="0,0,1,0" Padding="12,16">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="150" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="120" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <TextBlock Text="CONNECTIONS" Foreground="#8090A7" FontWeight="SemiBold" FontSize="11" Margin="4,0,0,14" />
                     <ListBox Grid.Row="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" IsEnabled="{Binding CanEdit}"
                              BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -123,7 +139,8 @@
                     </TreeView>
                 </Grid>
             </Border>
-            <TabControl Grid.Column="1" Margin="16,18,16,12" Background="Transparent" BorderThickness="0" SelectedIndex="{Binding SelectedWorkspaceTab}">
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#E8EDF4" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ToolTip="Drag to resize navigation" />
+            <TabControl Grid.Column="2" Margin="10,12,12,8" Background="Transparent" BorderThickness="0" SelectedIndex="{Binding SelectedWorkspaceTab}">
               <TabItem Header="Connection">
               <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="28,24">
@@ -191,23 +208,40 @@
               </ScrollViewer>
               </TabItem>
               <TabItem Header="Data explorer">
-                <Grid Margin="14,16">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                    <Grid Margin="0,0,0,14">
+                <Grid Margin="10,12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="{Binding ObjectTitle}" FontSize="23" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding ServerSummary}" Foreground="#75849A" Margin="0,6,0,0" />
+                            <TextBlock Text="{Binding ObjectTitle}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ActiveConnection}" ToolTip="{Binding ServerSummary}" Foreground="#75849A" FontSize="11" Margin="0,3,0,0" />
                         </StackPanel>
                         <Button Grid.Column="1" Content="Disconnect" Command="{Binding DisconnectCommand}" VerticalAlignment="Top" Margin="10,0,0,0" />
                     </Grid>
-                    <WrapPanel Grid.Row="1" Margin="0,0,0,14">
-                        <Button Content="Open selected" Command="{Binding OpenTableCommand}" />
-                        <Button Content="Refresh data" Command="{Binding ReloadPageCommand}" />
-                        <Button Content="← Previous" Command="{Binding PreviousPageCommand}" />
-                        <Button Content="Next →" Command="{Binding NextPageCommand}" Margin="0" />
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+                        <WrapPanel.Resources><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Padding" Value="10,5" /></Style></WrapPanel.Resources>
+                        <Button Content="Open" ToolTip="Open the object selected in the navigator" Command="{Binding OpenTableCommand}" />
+                        <Button Content="Refresh" Command="{Binding ReloadPageCommand}" />
+                        <ComboBox ItemsSource="{Binding MatchModes}" DisplayMemberPath="Label" SelectedValuePath="Code" SelectedValue="{Binding MatchMode}" IsEnabled="{Binding CanQuery}"
+                                  Width="145" Padding="5" Margin="0,0,6,0" ToolTip="Combine conditions across every column using AND or OR." />
+                        <Button Content="Apply" Command="{Binding ApplyQueryCommand}" Background="#177D70" Foreground="White" BorderBrush="#177D70" />
+                        <Button Content="Reset" Command="{Binding ResetQueryCommand}" />
+                        <ToggleButton x:Name="QueryOptionsToggle" Content="Query options" IsEnabled="{Binding CanQuery}" Style="{StaticResource CompactToggle}" ToolTip="All filter conditions and multi-column sort priorities; also available in Form view." />
+                        <Popup PlacementTarget="{Binding ElementName=QueryOptionsToggle}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                               IsOpen="{Binding IsChecked, ElementName=QueryOptionsToggle, Mode=TwoWay}"
+                               DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <Border Background="White" BorderBrush="#CFD9E6" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,3,4,5">
+                                <DockPanel>
+                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+                                        <TextBlock Text="Query options" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <Button Content="Close" Click="CloseQueryOptions_Click" HorizontalAlignment="Right" Padding="8,4" Margin="0" />
+                                    </Grid>
+                                    <local:QueryOptionsView />
+                                </DockPanel>
+                            </Border>
+                        </Popup>
                         <Menu Background="Transparent" IsEnabled="{Binding CanQuery}" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <MenuItem Header="Copy rows as…" Padding="10,8">
+                            <MenuItem Header="Copy rows as…" Padding="8,5">
                                 <MenuItem Header="CSV (with headers)" Tag="Csv" Click="CopyRows_Click" />
                                 <MenuItem Header="TSV (with headers)" Tag="Tsv" Click="CopyRows_Click" />
                                 <MenuItem Header="JSON array" Tag="Json" Click="CopyRows_Click" />
@@ -217,65 +251,17 @@
                             </MenuItem>
                         </Menu>
                     </WrapPanel>
-                    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="12" Margin="0,0,0,12">
-                        <StackPanel>
-                            <WrapPanel IsEnabled="{Binding CanQuery}">
-                                <ComboBox ItemsSource="{Binding MatchModes}" DisplayMemberPath="Label" SelectedValuePath="Code" SelectedValue="{Binding MatchMode}" Width="205" Padding="6" Margin="0,0,10,8" ToolTip="Combine the selected filter conditions with AND or OR. Rows with column None are ignored." />
-                                <Button Content="+ Filter" Command="{Binding AddFilterCommand}" Padding="10,6" Margin="0,0,8,8" />
-                                <Button Content="+ Sort" Command="{Binding AddSortCommand}" Padding="10,6" Margin="0,0,8,8" />
-                                <Button Content="Apply" Command="{Binding ApplyQueryCommand}" Padding="10,6" Margin="0,0,8,8" />
-                                <Button Content="Reset" Command="{Binding ResetQueryCommand}" Padding="10,6" Margin="0,0,0,8" />
-                            </WrapPanel>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="210" IsEnabled="{Binding CanQuery}" Margin="0,0,0,8">
-                                <StackPanel>
-                                    <Grid Margin="0,0,0,5">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="10" /><ColumnDefinition Width="125" /><ColumnDefinition Width="10" /><ColumnDefinition /><ColumnDefinition Width="35" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Filter column" Foreground="#75849A" FontSize="11" />
-                                        <TextBlock Grid.Column="2" Text="Condition" Foreground="#75849A" FontSize="11" />
-                                        <TextBlock Grid.Column="4" Text="Literal value" Foreground="#75849A" FontSize="11" />
-                                    </Grid>
-                                    <ItemsControl ItemsSource="{Binding DraftFilters}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,0,0,6">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="10" /><ColumnDefinition Width="125" /><ColumnDefinition Width="10" /><ColumnDefinition /><ColumnDefinition Width="35" /></Grid.ColumnDefinitions>
-                                                    <ComboBox ItemsSource="{Binding Columns}" DisplayMemberPath="Label" SelectedValuePath="Name" SelectedValue="{Binding Column}" Padding="6" AutomationProperties.Name="Filter column" />
-                                                    <ComboBox Grid.Column="2" ItemsSource="{Binding Operators}" DisplayMemberPath="Label" SelectedValuePath="Code" SelectedValue="{Binding Operator}" Padding="6" AutomationProperties.Name="Filter condition" />
-                                                    <TextBox Grid.Column="4" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ValueEnabled}" MaxLength="4096" Padding="8,6" ToolTip="A literal value. Percent and underscore are text in Contains / Starts with." />
-                                                    <Button Grid.Column="5" Content="×" Click="RemoveQueryRow_Click" Padding="7,4" Margin="5,0,0,0" ToolTip="Remove filter" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock Text="Order by · highest priority first" Foreground="#75849A" FontSize="11" Margin="0,6,0,5" />
-                                    <ItemsControl ItemsSource="{Binding DraftSorts}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,0,0,6">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="180" /><ColumnDefinition Width="10" /><ColumnDefinition Width="85" /><ColumnDefinition /><ColumnDefinition Width="32" /><ColumnDefinition Width="32" /><ColumnDefinition Width="35" /></Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Priority}" Foreground="#75849A" VerticalAlignment="Center" />
-                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding Columns}" DisplayMemberPath="Label" SelectedValuePath="Name" SelectedValue="{Binding Column}" Padding="6" AutomationProperties.Name="Sort column" />
-                                                    <ComboBox Grid.Column="3" ItemsSource="{Binding Directions}" SelectedItem="{Binding Direction}" Padding="6" AutomationProperties.Name="Sort direction" />
-                                                    <Button Grid.Column="5" Content="↑" Tag="-1" Click="MoveSort_Click" IsEnabled="{Binding CanMoveUp}" Padding="6,4" Margin="0,0,3,0" ToolTip="Higher sort priority" />
-                                                    <Button Grid.Column="6" Content="↓" Tag="1" Click="MoveSort_Click" IsEnabled="{Binding CanMoveDown}" Padding="6,4" Margin="0,0,3,0" ToolTip="Lower sort priority" />
-                                                    <Button Grid.Column="7" Content="×" Click="RemoveQueryRow_Click" Padding="7,4" Margin="5,0,0,0" ToolTip="Remove sort" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </ScrollViewer>
-                            <TextBlock Text="{Binding QuerySummary}" ToolTip="{Binding QuerySummary}" Foreground="#52627B" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="36" FontSize="11" />
-                            <TextBlock Text="{Binding QueryDraftMessage}" Foreground="#AA7620" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </Border>
+                    <Grid Grid.Row="2" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding QuerySummary}" ToolTip="{Binding QuerySummary}" Foreground="#75849A" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding QueryDraftMessage}" Foreground="#9B6A13" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
                     <TabControl Grid.Row="3" Background="White" BorderBrush="#E0E6F0" SelectedIndex="{Binding DataViewIndex}">
                         <TabItem Header="Data · read only">
                             <DockPanel Margin="8">
-                                <TextBlock DockPanel.Dock="Bottom" Text="{Binding PageSummary}" TextWrapping="Wrap" Foreground="#75849A" FontSize="11" Margin="4,12,4,4" />
                                 <DataGrid x:Name="PreviewGrid" ItemsSource="{Binding Page.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
                                           PreviewKeyDown="PreviewGrid_KeyDown" MouseDoubleClick="PreviewGrid_MouseDoubleClick" ToolTip="Double-click a cell or press F2 to inspect its value."
-                                          CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" CanUserReorderColumns="True" Sorting="PreviewGrid_Sorting"
+                                          CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" CanUserReorderColumns="True" Sorting="PreviewGrid_Sorting" ColumnHeaderStyle="{StaticResource InlineColumnHeader}"
                                           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                           ScrollViewer.CanContentScroll="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="29"
                                           Background="White" BorderThickness="0" HorizontalGridLinesBrush="#EEF1F7" AlternatingRowBackground="#F8FAFD"
@@ -292,7 +278,6 @@
                                         <Button Content="Record →" Command="{Binding NextRecordCommand}" Padding="10,5" Margin="0" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock DockPanel.Dock="Bottom" Text="{Binding PageSummary}" TextWrapping="Wrap" Foreground="#75849A" FontSize="11" Margin="4,10,4,4" />
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="135" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
                                     <ListBox ItemsSource="{Binding Page.Rows}" SelectedItem="{Binding SelectedRecord, Mode=TwoWay}" DisplayMemberPath="Label"
@@ -331,6 +316,14 @@
                                      AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="8" BorderThickness="0" />
                         </TabItem>
                     </TabControl>
+                    <Grid Grid.Row="4" Margin="2,8,2,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding PageSummary}" ToolTip="{Binding PageSummary}" TextTrimming="CharacterEllipsis" Foreground="#8090A7" FontSize="11" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                            <Button Content="← Previous" Command="{Binding PreviousPageCommand}" Padding="9,4" Margin="0,0,6,0" />
+                            <Button Content="Next →" Command="{Binding NextPageCommand}" Padding="9,4" Margin="0" />
+                        </StackPanel>
+                    </Grid>
                 </Grid>
               </TabItem>
               <TabItem Header="SQL history">

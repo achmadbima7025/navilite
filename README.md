@@ -45,7 +45,7 @@ Build Tools mungkin memerlukan persetujuan administrator atau restart Windows. P
 
 Pemeriksaan menggunakan `127.0.0.1:3306` dan hanya menguji port TCP, bukan autentikasi. Gunakan akun development terpisah saat implementasi koneksi dimulai. Jangan menyimpan password dalam kode atau Git; `.env` diabaikan oleh `.gitignore`.
 
-## Status aplikasi: 0.15.0
+## Status aplikasi: 0.16.0
 
 Inkrement pertama menghubungkan aplikasi WPF dengan Rust core dan menyediakan:
 
@@ -187,6 +187,14 @@ Inkrement 0.15.0 menambahkan Explain dalam format tabel:
 - Snapshot EXPLAIN dapat dipin dan dibandingkan dengan hasil SELECT/plan berikutnya. Batas delapan tab dan 32 MiB frame berlaku bersama; kegagalan mempertahankan snapshot sebelumnya. Kolom indikator dan warna amber menandai `type=ALL`, `Using filesort`, serta `Using temporary`. Ringkasan menandai plan yang belum lengkap ketika baris/sel dipendekkan atau metadata yang diharapkan tidak tersedia. Penanda ini membantu inspeksi estimasi optimizer dan bukan penilaian mutlak performa kueri.
 - History menyimpan label User EXPLAIN, waktu, konteks database, dan outcome; isi SQL serta pesan server tetap dihilangkan. Format JSON, plan tree, analisis eksekusi aktual, dan rekomendasi indeks belum tersedia. Transaksi read-only dan kebijakan SELECT bukan sandbox untuk seluruh kemungkinan efek fungsi/optimizer.
 
+Inkrement 0.16.0 merapikan layout dan memindahkan filter/sort ke header kolom:
+
+- Nama kolom, arah sort, serta nomor prioritas berada di baris pertama header; input literal ringkas berada di bawahnya. Ketik nilai lalu Enter atau Apply untuk membaca ulang data. Mengetik tidak mengirim kueri. Ikon filter membuka operator dan beberapa kondisi untuk kolom tersebut; badge membedakan kondisi aktif dan perubahan yang belum diterapkan.
+- Filter cepat memakai Equals sebagai default. Mengosongkan input menghapus kondisi cepat; untuk mencocokkan string kosong, gunakan Equals dengan nilai kosong di popover. Kolom dengan beberapa kondisi atau operator NULL memakai petunjuk baca saja pada input cepat, dan tetap bisa diedit lewat popover. Batas 16 kondisi serta validasi tipe/prepared statement di Rust tetap berlaku.
+- Klik nama/panah header untuk ASC → DESC → default. Shift-klik mempertahankan sort kolom lain dan mengubah kolom tersebut dalam urutan sampai delapan kolom. Sort berlaku pada filter yang sudah diterapkan; draft filter tetap menunggu Apply. Query options menyediakan seluruh kondisi, AND/OR, dan prioritas sort saat dibutuhkan, termasuk dari Form view.
+- Panel query besar tidak lagi selalu tampil. Toolbar dan judul lebih ringkas, pagination berada di footer bersama, sidebar dapat diubah lebarnya, dan impor/ekspor profil berada di menu Connections. Lebar serta urutan tampilan kolom dipertahankan ketika metadata kolom sama saat refresh/pagination. Field filter menjadi read-only saat proses berjalan agar fokus tidak dipindahkan paksa.
+- Layout dirender dari komponen WPF dengan data contoh pada 1240 × 780 dan 1040 × 700 tanpa koneksi database. Verifikasi interaksi desktop langsung masih tertunda karena helper desktop gagal diinisialisasi; perilaku filter/sort terautentikasi juga belum diperiksa ulang.
+
 SSH tunnel, sertifikat klien TLS, socket transport, kompatibilitas impor Navicat `.ncx`, penggantian profil melalui impor, guardrail SQL production untuk perintah pengubah data, penyuntingan data, kelompok filter bertingkat, eksekusi SQL umum di luar SELECT, streaming nilai melebihi 1 MiB, JSON tree/image/date editor, syntax highlighting/autocomplete, formatter grammar SQL umum, multi-dokumen, dan transfer masih menunggu inkrement berikutnya. Label production saat ini hanya indikator lingkungan; semua eksekusi editor tetap memakai transaksi read-only.
 
 ## Build dan jalankan
@@ -208,8 +216,8 @@ Build Release:
 Untuk membuat build terpisah saat aplikasi sebelumnya masih terbuka:
 
 ```powershell
-./scripts/Build.ps1 -Configuration Release -OutputDirectory .dev/build-v0.15.0/desktop
-& ./.dev/build-v0.15.0/desktop/NaviLite.Desktop.exe
+./scripts/Build.ps1 -Configuration Release -OutputDirectory .dev/build-v0.16.0/desktop
+& ./.dev/build-v0.16.0/desktop/NaviLite.Desktop.exe
 ```
 
 `OutputDirectory` berlaku pada output desktop beserta salinan DLL native; cache dan hasil build Rust tetap di `target/`. Build ini tidak mengganti executable/DLL pada folder aplikasi yang sedang digunakan. `Run.ps1` tetap memakai lokasi output default.
@@ -322,10 +330,10 @@ Registry dibatasi 16 halaman. Proyeksi identitas primary key dibatasi pada serve
 Proyek memakai [Semantic Versioning 2.0.0](https://semver.org/) dan Conventional Commits (`feat:`, `fix:`, `chore:`). Versi Rust di `Cargo.toml` dan versi .NET di `Directory.Build.props` harus sama; build menolak ketidaksesuaian dan aplikasi memeriksa versi core saat startup.
 
 ```powershell
-./scripts/Set-Version.ps1 -Version 0.15.0
+./scripts/Set-Version.ps1 -Version 0.16.0
 ```
 
-Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.15.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
+Skrip memperbarui workspace Cargo, Cargo.lock, serta versi produk/assembly .NET. Perbarui CHANGELOG.md, lakukan verifikasi, commit, lalu buat tag `v0.16.0`. Selama versi `0.x`, fitur baru dan perubahan API yang memutus kompatibilitas menaikkan MINOR; perbaikan kompatibel menaikkan PATCH. Mulai `1.0.0`, perubahan API yang memutus kompatibilitas menaikkan MAJOR.
 
 Development mengikuti pendekatan code first. Jangan membuat test atau project test tanpa instruksi eksplisit pengguna. Verifikasi yang digunakan:
 
